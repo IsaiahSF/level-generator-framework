@@ -101,12 +101,18 @@ class SDKExecutor(Executor):
         GMOD    : '4000'
         }
 
-    ## Check for needed software
+    ## Check for software needed to work with format
     #
     @staticmethod
     def checkReq():
         #check that SDK is installed
         return SDKUtil.check()
+    
+    ## Check for software needed to work with specific games
+    #
+    @staticmethod
+    def usableGames():
+        return SDKUtil.checkGames()
     
     ## Constructor
     #

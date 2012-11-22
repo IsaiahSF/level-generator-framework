@@ -28,6 +28,15 @@ class Executor(ProgressSubject):
     @staticmethod
     def checkReq():
         raise NotImplementedError()
+    
+    ## Get list of games that can be used. Looks for needed files and performs all other needed checks.
+    #  If a game is listed by this function, it should not crash if we try to use it.
+    #
+    #  @return list of gameIDs
+    #
+    @staticmethod
+    def usableGames():
+        raise NotImplementedError()
 
     ## Constructor
     #

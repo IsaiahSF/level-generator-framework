@@ -292,7 +292,9 @@ class ControlGUI:
         self.generatorList = list(self.generators.keys())
         self.generatorList.sort()
         ## list of game names. Used in GUI.
-        self.gameList = GAMES
+        self.gameList = []
+        for executor in self.executors.values():
+            self.gameList.extend(executor.usableGames())
         self.gameList.sort()
         #update contents of drop-down menus
         self._updateOptionMenuContents(self.generatorSelector, self.generatorList)
@@ -496,7 +498,6 @@ class ControlGUI:
         for interface in ['formats.executor', 'formats.map', 'generators.generator']:
             if not interface in self.loadedModules:
                 try:
-                    #print('import ' + interface)
                     exec('import ' + interface)
                 except Exception as e:
                     msg = 'Unable to load interface ' + interface + '!\n\n'
@@ -505,7 +506,6 @@ class ControlGUI:
                 self.loadedModules.add(interface)
             else:
                 try:
-                    #print('imp.reload(' + interface + ')')
                     imp.reload(eval(interface))
                 except Exception as e:
                     msg = 'Unable to load interface ' + interface + '!\n\n'

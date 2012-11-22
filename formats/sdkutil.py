@@ -29,6 +29,54 @@ class SDKUtil:
         if os.getenv('sourcesdk') == None:
             returnval.append("Source SDK needs to be installed and run at least once.")
         return returnval
+    
+    ## Checks if path contains all required utilities
+    #
+    #  @return boolean
+    #
+    @staticmethod
+    def checkHammerPath(hammerPath):
+        return all([
+            os.path.isdir(hammerPath + '/bin'),
+            os.path.isfile(hammerPath + '/bin/hammer.exe'),
+            os.path.isfile(hammerPath + '/bin/vbsp.exe'),
+            os.path.isfile(hammerPath + '/bin/vvis.exe'),
+            os.path.isfile(hammerPath + '/bin/vrad.exe')
+            ])
+    
+    ## Check for needed game utilities
+    #
+    #  @return list List of gameIDs that can be worked on
+    #
+    @staticmethod
+    def checkGames():
+        gamelist = []
+        #check for compilation utilities
+        userName, basePath = SDKUtil.findUserAndBasePath()
+        hammerPath = None
+        #portal 2
+        hammerPath = basePath + '/common/portal 2'
+        if SDKUtil.checkHammerPath(hammerPath):
+            gamelist.append(P2)
+        #l4d1
+        hammerPath = basePath + '/common/left 4 dead'
+        if SDKUtil.checkHammerPath(hammerPath):
+            gamelist.append(L4D1)
+        #l4d2
+        hammerPath = basePath + '/common/left 4 dead 2'
+        if SDKUtil.checkHammerPath(hammerPath):
+            gamelist.append(L4D2)
+        #counter strike source, team fortress 2
+        hammerPath = basePath + '/' + userName + '/sourcesdk/bin/orangebox'
+        if SDKUtil.checkHammerPath(hammerPath):
+            gamelist.extend([CSS, TF2])
+        #hl2, hl2dm, hl2ep1, hl2ep2, portal 1
+        hammerPath = basePath + '/' + userName + '/sourcesdk/bin/source2009'
+        if SDKUtil.checkHammerPath(hammerPath):
+            gamelist.extend([HL2, HL2EP1, HL2EP2, HL2DM, GMOD])
+        #check that game directory can be found
+        gamelist = [x for x in gamelist if os.path.isdir(SDKUtil.findGamePath(x))]
+        return gamelist
 
     ## finds steam username and steam installation path
     #
@@ -77,14 +125,8 @@ class SDKUtil:
             #but not portal 2, l4d2, hl2dm(?)
             hammerPath = basePath + '/' + userName + '/sourcesdk/bin/source2009'
         #validate
-        if not all([
-            os.path.isdir(hammerPath + '/bin'),
-            os.path.isfile(hammerPath + '/bin/hammer.exe'),
-            os.path.isfile(hammerPath + '/bin/vbsp.exe'),
-            os.path.isfile(hammerPath + '/bin/vvis.exe'),
-            os.path.isfile(hammerPath + '/bin/vrad.exe')
-            ]):
-            raise Exception("Game or game SDK/authoring tools not set up correctly.")
+        if not SDKUtil.checkHammerPath(hammerPath):
+            raise Exception("Game or game SDK/authoring tools not set up correctly for " + str(gameID) + ".")
         ## Path of directory containing hammer, VBSP, VVIS, VRAD.
         return hammerPath
 
@@ -99,9 +141,6 @@ class SDKUtil:
         assert SDKUtil._gamePaths[game]!=None
         gamepath = basePath + '/' + SDKUtil._gamePaths[game]
         gamepath = gamepath.replace('%username%', userName)
-        #validate
-        if not os.path.isdir(gamepath):
-            raise Exception("Game directory is not set up correctly.")
         ## Path of game directory. contains maps folder for compiled maps
         return gamepath
 
