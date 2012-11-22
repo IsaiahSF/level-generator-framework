@@ -100,6 +100,13 @@ class SDKExecutor(Executor):
         CSS     : '240',
         GMOD    : '4000'
         }
+
+    ## Check for needed software
+    #
+    @staticmethod
+    def checkReq():
+        #check that SDK is installed
+        return SDKUtil.check()
     
     ## Constructor
     #

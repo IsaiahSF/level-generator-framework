@@ -19,6 +19,16 @@ class Executor(ProgressSubject):
     ## ConfigGUI implementation to contain GUI mess
     configGUI = None
 
+    ## Check if executor will be able to run. Checks for required software,
+    #  such as libraries, level compilation utilities, map editor, or
+    #  game software.
+    #
+    #  @return list Empty if ok, otherwise list of strings; human-readable problem descriptions
+    #
+    @staticmethod
+    def checkReq():
+        raise NotImplementedError()
+
     ## Constructor
     #
     #  @param gameID short string identifying what game to use. Must be in the

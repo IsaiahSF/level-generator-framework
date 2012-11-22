@@ -1,5 +1,7 @@
 import os, inspect, threading, traceback, sys, time, imp
 
+#Note that the only officially supported version of Python is 3
+print("python version " + str(sys.version_info))
 if sys.version_info[0] == 2:
     #for Python 2.x
     from Tkinter import *
@@ -315,7 +317,12 @@ class ControlGUI:
         mapFormat = getGameFormat(selection)
         ## determine the correct instance of executor appropriate for game
         #  selected in menu. Used to configure custom compilation.
-        self.selectedExecutor = self.executors[mapFormat](selection)
+        try:
+            self.selectedExecutor = self.executors[mapFormat](selection)
+        except Exception as e:
+            msg = 'Unable to init ' + str(mapFormat) + ' executor\n\n'
+            msg = msg + traceback.format_exc()
+            ErrorFatal(msg, self.window.destroy)
 
     ## Disables game menu entries not supported by current generator and
     #  forces to supported game. Also creates an instance of the generator so
@@ -492,16 +499,18 @@ class ControlGUI:
                     #print('import ' + interface)
                     exec('import ' + interface)
                 except Exception as e:
-                    ErrorFatal('Unable to load interface ' + interface + \
-                               '!\n\n' + traceback.format_exc())
+                    msg = 'Unable to load interface ' + interface + '!\n\n'
+                    msg = msg + traceback.format_exc()
+                    ErrorFatal(msg, self.window.destroy)
                 self.loadedModules.add(interface)
             else:
                 try:
                     #print('imp.reload(' + interface + ')')
                     imp.reload(eval(interface))
                 except Exception as e:
-                    ErrorFatal('Unable to reload interface ' + interface + \
-                               '!\n\n' + traceback.format_exc())
+                    msg = 'Unable to load interface ' + interface + '!\n\n'
+                    msg = msg + traceback.format_exc()
+                    ErrorFatal(msg, self.window.destroy)
         #load/reload modules
         formatModules = self._loadModules(
             'formats',
@@ -519,7 +528,11 @@ class ControlGUI:
         ## loaded generator modules
         self.generators = {}
         for executor in self._findImplementors(formatModules, formats.executor.Executor):
-            self.executors[executor.mapFormat] = executor
+            requirements = executor.checkReq()
+            if requirements == None or len(requirements) == 0:
+                self.executors[executor.mapFormat] = executor
+            else:
+                ErrorWarning('Unable to load ' + executor.mapFormat + ' executor.\n\n' + '\n'.join(requirements))
         for item in self._findImplementors(formatModules, formats.map.Map):
             self.maps[item.mapFormat] = item
         for generator in self._findImplementors(generatorModules, generators.generator.Generator):
@@ -532,15 +545,16 @@ class ControlGUI:
                 ErrorWarning('Invalid generator: ' + generator.name)
             else:
                 self.generators[generator.name] = generator
-        #verify that there are no incomplete executor-map pairings
-        #uses symmetric difference of sets to get items in one but not both
-        mismatches = set(self.executors.keys()) ^ set(self.maps.keys())
-        if len(mismatches) > 0:
-            ErrorFatal("These formats are missing a module: " + str(mismatches))
+        #eliminate incomplete executor-map pairings
+        for fmt in (set(self.executors.keys()) - set(self.maps.keys())):
+            del self.executors[fmt]
+        for fmt in (set(self.maps.keys()) - set(self.executors.keys())):
+            del self.maps[fmt]
+        #make sure we have at least some modules to work with
         if len(self.executors)==0:
-            ErrorFatal("No format modules.")
+            ErrorFatal("No format modules.", self.window.destroy)
         if len(self.generators)==0:
-            ErrorFatal("No generator modules.")
+            ErrorFatal("No generator modules.", self.window.destroy)
 
     ## Finds and loads modules in given directory
     #
@@ -772,11 +786,13 @@ class ErrorFatal:
     ## constructor
     #
     #  @param message error message to display
-    def __init__(self, message):
+    def __init__(self, message, destructor=None):
         messagebox.showinfo(
             icon = 'error',
-            message = message)
+            message = 'Fatal: '+message)
         #self destruct!
+        if destructor:
+            destructor()
         sys.exit('fatal error occured')
 
 if __name__ == "__main__":

@@ -545,7 +545,7 @@ class FGD:
                         raise Exception('Parameter must only be prepended with input or output.')
                 except Exception as e:
                     print("Exception", e)
-                    print(valueType, default, choices, shortDescription, longDescription, sep="|")
+                    print("|".join([str(x) for x in [valueType, default, choices, shortDescription, longDescription]]))
                 cursor += 1
         
         def _convertType(self, type, choices):

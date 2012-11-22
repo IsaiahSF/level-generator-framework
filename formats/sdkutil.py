@@ -19,6 +19,17 @@ class SDKUtil:
         GMOD    : '%username%/garrysmod/garrysmod'
         }
 
+    ## Checks if Source SDK is installed
+    #
+    #  @return boolean True if installed
+    #
+    @staticmethod
+    def check():
+        returnval = []
+        if os.getenv('sourcesdk') == None:
+            returnval.append("Source SDK needs to be installed and run at least once.")
+        return returnval
+
     ## finds steam username and steam installation path
     #
     #  @return (user, path) tuple
@@ -28,7 +39,7 @@ class SDKUtil:
         #uses an environment variable
         value = os.getenv('sourcesdk')
         if value == None:
-            raise Exception("Souce SDK must be installed and run at least once.")
+            raise Exception("Source SDK must be installed and run at least once.")
         
         #manipulate path to get base path and steam username
         value = value.replace('\\', '/')
