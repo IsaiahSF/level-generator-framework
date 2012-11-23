@@ -105,7 +105,7 @@ class TestVMF(Generator):
         
     def _testFromPlanes(self):
         # make a room to contain the other tests
-        d = 1024*4 #room is 2d*2d and d high.
+        d = 1024*4 #room is 2d by 2d and d high.
         #floor
         Solid.fromPlanes(self.native,
                          self._planeCube(-32,-48,d+16,-d-16,d+16,-d-16),
@@ -258,28 +258,30 @@ class TestVMF(Generator):
             new.transform(matrix, True, True)
 
     def _testFromHeightMap(self):
-        innerRadius = 512
-        lower = -32
-        upper = 128
-        period = 256
+        innerRadius = 528
+        lower = -48
+        upper = 64
+        period = 512
         power = 4
 
         vertexNum = power*power + 1
         magnitude = (upper-lower)/2.0
-        center = (upper+lower)/2.0
         size = 1024 #dimension of displacement
         step = size/(vertexNum-1)
-        for dy in range(-1024, 1024, size):
-            for dx  in range(-1024, 1024, size):
+        for dy in range(-4096, 4096, size):
+            for dx  in range(-4096, 4096, size):
                 heightMap = []
-                for y in range(0, size+1, int(step)):
-                    row = []
-                    for x in range(0, size+1, int(step)):
-##                        tx = dx + x*step
-##                        ty = dy + y*step
-##                        d = math.sqrt(tx*tx + ty*ty)
-##                        height = -math.cos(2*math.pi*d/period)*magnitude + magnitude
-                        self.listenerWrite(str([dx,dy,x,y]) + '\n')
-                        row.append(x)
-                    heightMap.append(row)
+                for x in range(0, size+1, int(step)):
+                    column = []
+                    for y in range(0, size+1, int(step)):
+                        tx = dx + x
+                        ty = dy + y
+                        d = math.sqrt(tx*tx + ty*ty)
+                        if (d < innerRadius):
+                            height = 0
+                        else:
+                            d -= innerRadius
+                            height = -math.cos(2*math.pi*d/period)*magnitude + magnitude
+                        column.append(lower+height)
+                    heightMap.append(column)
                 Solid.fromHeightMap(self.native, (dx,dy,-64), (size,size,32), heightMap, self.map.textureStone)

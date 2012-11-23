@@ -535,7 +535,7 @@ class Solid:
     #  @param parent VMF containing this displacement
     #  @param pos bottom lower left corner (x,y,z)
     #  @param size size of displacement
-    #  @param heightMap square array of height values
+    #  @param heightMap square array of height values. Height values are absolute.
     #  @param material texture of displacement
     @staticmethod
     def fromHeightMap(parent, pos, size, heightMap, material=""):
@@ -550,7 +550,7 @@ class Solid:
             )
         offsets = []
         for row in heightMap:
-            offsets.append([[0,0,z-pos[2]] for z in row])
+            offsets.append([[0,0,z-pos[2]-size[2]] for z in row])
         solid.sides[0].power = power
         solid.sides[0].displacement = offsets
         return solid
@@ -829,7 +829,9 @@ class Side:
         self.lightmapScale = 16
         ## smoothing groups
         self.smoothingGroups = 0
+        #  displacement data
         self._vertexNum = 0
+        self._startPosition = None
         self._displacement = None
         self._alpha = None
 
@@ -909,16 +911,22 @@ class Side:
         if self._vertexNum == 0:
             return 0
         else:
-            return math.log(self._vertexNum - 1)/math.log(2)
+            return math.log(self._vertexNum - 1, 2) #base 2
     
     def _setPower(self, power):
         if power == 0:
             self._vertexNum = 0
+            self._startPosition = None
             self._displacement = None
             self._alpha = None
         elif power in Side.POWERS:
             if self.power != power:
                 self._vertexNum = int(2**power + 1)
+                ## @todo fixme - coordinate values too large? Ideally would be the real corner of the brush.
+                ## @bug (anticipated) If displacement is rotated after it is created
+                #  the startPosition coordinate will be wrong.
+                #  fix - transform startPosition value?
+                self._startPosition = [-16384, -16384, -16384]
                 self._displacement = []
                 for x in range(0, self._vertexNum):
                     row = []
@@ -954,9 +962,9 @@ class Side:
                 "Power/vertex number mismatch. Expected %ix%i vertices, got %ix%i." %
                 (self._vertexNum, self._vertexNum, len(displacement), len(displacement[0]))
                 )
-
         self._displacement = displacement
     ## displacement offset values
+    #  displacement is a 2d array of offsets. It is a column-major array, addressed like disp[x][y]
     displacement = property(fget=_getDisplacement, fset=_setDisplacement)
 
     def _getAlpha(self):
@@ -1031,6 +1039,14 @@ class Side:
     def _displacementFromKVD(side, dispInfoKVD):
         # Get power and calculate number of vertexes
         side.power = int(dispInfoKVD["power"][0])
+        
+        # Get startposition
+        if "startposition" in dispInfoKVD:
+            side._startPosition = SDKUtil.getNumbers(
+                dispInfoKVD["startposition"]
+            )
+        else:
+            side_startPosition = [0, 0, 0]
 
         # Get normals
         normalsKVD = dispInfoKVD["normals"][0]
@@ -1147,6 +1163,11 @@ class Side:
                 "power",
                 str(self.power)
                 )
+            
+            dispInfoKVL.add(
+                "startposition",
+                "[%g %g %g]" % tuple(self._startPosition)
+            )
 
             offsetsKVL = KeyValueList()
             offsetNormalsKVL = KeyValueList()
