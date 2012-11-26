@@ -1,4 +1,5 @@
 import math, copy, re
+import gameids
 from formats.fgd import FGD
 from formats.sdkutil import SDKUtil
 
@@ -110,6 +111,9 @@ class VMF:
     def __init__(self, gameId, filename=None):
         ## the game this VMF is meant for. (Determines available entities)
         #  @todo FIXME
+        if gameids.getGameFormat(gameId) != gameids.VMF:
+            raise Exception("Game ID %s does not use the VMF format." % gameId)
+        
         self.gameId = gameId
         self._currentId = 1
         if filename == None:
@@ -1270,6 +1274,29 @@ class Side:
                 )
 
 
+## VMF entity output
+class Output(object):
+    
+    ## constructor
+    #
+    # @param entity entity to give output
+    # @param event event that triggers the output
+    # @param target target of the output
+    # @param _input input to trigger on the target
+    # @param parameters parameter to provide the target input or None if the target input doesn't take a parameter
+    # @param delay delay in seconds before the target input is triggered after the event occurs
+    # @param fireOnce only allow the output to be triggered once
+    def __init__(self, entity, event, target, _input, parameters=None, delay=0, fireOnce=False):    
+        self.event = event.lower() # @todo ensure entity has this output?
+        self.target = target # @todo ensure target exists?
+        self.input = _input # @todo ensure target has input?
+        self.parameters = parameters # @todo ensure parameter is correct type?
+        self.delay = delay
+        self.fireOnce = fireOnce
+        self.entity = entity
+        self.entity.outputs[event].append(self)
+
+
 ## VMF entity
 class Entity(object):
     
@@ -1282,7 +1309,7 @@ class Entity(object):
     #  @param parent VMF containing this entity
     #  @param classname name of entity
     #  @param kwargs entity properties can be set in the constructor using
-    #  arguments like origin=(x,y,z), model='props/someModel'
+    #  arguments like origin=[x,y,z], model='props/someModel'
     #
     def __init__(self, parent, classname, **kwargs):
         ## VMF containing this entity
@@ -1327,17 +1354,7 @@ class Entity(object):
             raise KeyError(key + ' does not exist in ' + self.classname)
         self.properties[key] = value
 
-    """
-    def addOutput(self, event, target, input, parameters="", delay=0, fireOnce=False):
-        if not event in self.outputs:
-            raise Exception("No such event: " + event)
-        #self.outputs[event] = 
-        
-    def getOutputs(self, event):
-        return self.outputs[event]
-    """
-
-    ## INTERNAL! Create Entity from Key-value dictionary. Used in parsing VMF files.
+    ## INTERNAL! Create Entity from key-value dictionary. Used in parsing VMF files.
     @classmethod
     def fromKVD(cls, parent, entityKVD):
         entity = Entity(parent, entityKVD["classname"][0])
@@ -1345,8 +1362,10 @@ class Entity(object):
         definition = FGD.getGameFGD(parent.gameId)[entityKVD["classname"][0]]
         for parameter in definition.parameters:
             if parameter.name in entityKVD.keys():
-                if parameter.type == FGD.INTEGER:
-                    try:
+                if parameter.type == FGD.VOID:
+                    entity.properties[parameter.name] = None
+                elif parameter.type == FGD.INTEGER:
+                    try: # @fixme why is this here?
                         entity.properties[parameter.name] = int(entityKVD[parameter.name][0])
                     except ValueError:
                         entity.properties[parameter.name] = float(entityKVD[parameter.name][0])
@@ -1367,11 +1386,10 @@ class Entity(object):
                     )
                     
                     entity.properties[parameter.name] = [angle[2], angle[0], angle[1]]
-
-                        # Right handed
-    # X = Roll = +counter-clockwise/-clockwise
-    # Y = Pitch = +counter-clockwise/-clockwise
-    # Z = Yaw = +counter-clockwise/-clockwise
+                # Right handed
+                # X = Roll = +counter-clockwise/-clockwise
+                # Y = Pitch = +counter-clockwise/-clockwise
+                # Z = Yaw = +counter-clockwise/-clockwise
                 elif parameter.type == FGD.AXIS:
                     floats = SDKUtil.getNumbers(
                         entityKVD[parameter.name][0],
@@ -1385,6 +1403,15 @@ class Entity(object):
                         entity.properties[parameter.name] = []
                         for x in range(0, int(len(floats)/3)):
                             entity.properties[parameter.name].append(floats[x:x+3])
+                elif parameter.type == FGD.CHOICE:
+                    try:
+                        entity.properties[parameter.name] = int(entityKVD[parameter.name][0])
+                    except ValueError:
+                        if entityKVD[parameter.name][0] in tuple(parameter.choices.values()): # Is the mapping reversed for some reason?
+                            selections = {v:k for k, v in parameter.choices.items()} # Inverse of choices
+                            entity.properties[parameter.name] = selections[entityKVD[parameter.name][0]]
+                        else:
+                            entity.properties[parameter.name] = entityKVD[parameter.name][0]
                 else:
                     entity.properties[parameter.name] = entityKVD[parameter.name][0]
             else:
@@ -1400,7 +1427,24 @@ class Entity(object):
             connections = entityKVD["connections"][0]
             for key in connections.keys():
                 for connection in connections[key]:
-                    entity.outputs[key.lower()].append(connection)
+                    target, _input, parameter, delay, fireOnce = connection.split(",")
+                    
+                    fireOnce = fireOnce == 1
+                    
+                    # If possible, convert the parameter to int, float, or None
+                    # (otherwise leave the parameter as a str)
+                    if len(parameter) == 0:
+                        parameter = None
+                    else:
+                        try:
+                            parameter = int(parameter)
+                        except ValueError:
+                            try:
+                                parameter = float(parameter)
+                            except ValueError:
+                                pass
+                    
+                    Output(entity, key.lower(), target, _input, parameter, delay, fireOnce)
         
         if "solid" in entityKVD.keys():
             for solidKVD in entityKVD["solid"]:
@@ -1456,7 +1500,7 @@ class Entity(object):
                     parameter.name,
                     valueStr
                     )
-            else:
+            elif self.properties[parameter.name] != None and len(str(self.properties[parameter.name])) > 0:
                 entityKVL.add(
                     parameter.name,
                     str(self.properties[parameter.name])
@@ -1471,7 +1515,20 @@ class Entity(object):
         connectionsKVL = KeyValueList()
         for output in self.outputs.keys():
             for connection in self.outputs[output]:
-                connectionsKVL.add(output, connection)
+                if connection.parameters == None:
+                    parameters = ""
+                else:
+                    parameters = str(connection.parameters)
+                
+                value = "%s,%s,%s,%s,%s" % (
+                    connection.target,
+                    connection.input,
+                    parameters,
+                    connection.delay,
+                    int(connection.fireOnce)
+                    )
+                
+                connectionsKVL.add(output, value)
         entityKVL.add("connections", connectionsKVL)
         
         for solid in self.solids:

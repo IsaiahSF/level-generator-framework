@@ -1,5 +1,6 @@
-import os, gameids, copy
+import os, gameids, copy, re
 from formats.sdkutil import SDKUtil
+
 
 ## Parses entity information from a .fgd file.
 #
@@ -8,70 +9,55 @@ class FGD:
     
     ## @todo tidy up mess that zay created
     ## @todo remove unnecessary code
-    ## @todo 
-
-    """
-    ## void data type    
-    VOID = 'FGDvoid'
-    ## string data type  
-    STRING = 'FGDstring'
-    ## integer data type  
-    INTEGER = 'FGDinteger'
-    ## float data type  
-    FLOAT = 'FGDfloat'
-    ## multiple choice data type  
-    CHOICES = 'FGDchoices'
-    ## number sequence data type
-    SEQUENCE = 'FGDsequence'
-    ## 3 numbers (not neccessarily a vector or anything in particular)
-    VECTOR = 'FGDvector'
-    ## 3 axis vector
-    ANGLE = 'FGDangle'
-    ## 3D coordinate(s)
-    POSITION = 'FGDposition'
-    """
-
+    
     ## void data type
-    VOID = 0
+    VOID = "fgd_void"
     ## string data tyle
-    STRING = 1
+    STRING = "fgd_string"
+    ## boolean data type
+    BOOLEAN = "fgd_boolean"
     ## integer data type
-    INTEGER = 2
+    INTEGER = "fgd_integer"
     ## decimal number data type
-    FLOAT = 3
+    FLOAT = "fgd_float"
     ## integer list data type
-    INTEGER_LIST = 4
+    INTEGER_LIST = "fgd_integer_list"
     ## decimal number list data type
-    FLOAT_LIST = 5
+    FLOAT_LIST = "fgd_float_list"
     ## vector data type
-    VECTOR = 6
+    VECTOR = "fgd_vector"
     ## angle data type
-    ANGLE = 7
+    ANGLE = "fgd_angle"
     ## axis data type
-    AXIS = 8
+    AXIS = "fgd_axis"
+    ## choice data type
+    CHOICE = "fgd_choice"
     
     _CONVERSION = {
         VOID:['void'],
         STRING:[
             'string', 'filterclass', 'material', 'npcclass', 'scene',
             'sound', 'pointentityclass', 'sprite', 'studio',
-            'target_destination', 'target_name_or_class', 'target_source'
+            'target_destination', 'target_name_or_class', 'target_source',
+            'decal', 'instance_file', 'instance_variable', 'instance_parm'
             ],
+        BOOLEAN:['bool'],
         INTEGER:['integer','node_dest', 'flags'],
         FLOAT:['float'],
         INTEGER_LIST:['color255','sidelist'],
         FLOAT_LIST:['color1'],
         VECTOR:['origin', 'vector'],
         ANGLE:['angle'],
-        AXIS:['axis','vecline']
+        AXIS:['axis','vecline'],
+        CHOICE:['choices','flags']
     }
     
     _DEFAULTS = {
-        'void':"",
-        'string':"",
+        'void':'',
+        'string':'',
         'integer':0,
         'float':0.0,
-        #'choices',
+        'choices':0,
         'flags':0,
         'axis':[[0,0,0],[0,0,1]],
         'angle':[0.0,0.0,0.0],
@@ -141,14 +127,14 @@ class FGD:
 
     _FGDDict = {}
 
-    ## get the appropriate FGD object for a game
+    ## Get the appropriate FGD object for the specified game
     #
     #  @param gameId game ID
     #  @return FGD object
     @classmethod
     def getGameFGD(cls, gameId):
         if gameId not in gameids.GAMES:
-            raise Exception("Not a valid gameid! >:.")
+            raise Exception("Game ID %s not a valid game ID." % gameId)
         
         if gameId not in cls._FGDDict:
             user, base = SDKUtil.findUserAndBasePath()
@@ -176,7 +162,6 @@ class FGD:
             elif gameId == gameids.GMOD:
                 raise NotImplementedError()
             
-            print(path)
             cls._FGDDict[gameId] = FGD(path)
 
         return cls._FGDDict[gameId]
@@ -197,7 +182,7 @@ class FGD:
         cursor = 0
         startmark = data.find(start, cursor)
         endmark = data.find(end, cursor)
-        while True == True:
+        while True:
             if endmark == -1: #should mean there are no more brackets
                 if startmark != -1: #there are starting brackets left with no ending brackets
                     raise Exception('bracket left open')
@@ -371,6 +356,7 @@ class FGD:
             cursor += 1
 
     ## Container for information about class parameters, inputs, and outputs
+    # @todo clean and improve code, fix nonsensical elements of parsing strategy
     class Entity:
         ## valid data types for parameters, inputs, and outputs.
         valueTypes = {
@@ -503,14 +489,14 @@ class FGD:
                     shortDescription = parent.stringDict[ data[1] ]
                 if len(data) >= 3 and data[2] != '':
                     try:
-                        default = int(data[2])
+                        default = str(int(data[2]))
                     except:
                         default = parent.stringDict[ data[2] ]
                 if len(data) >= 4:
                     longDescription = parent.stringDict[ data[3] ]
                 if valueType == 'choices' or valueType == 'flags':
                     if valueType == 'flags':
-                        default = 0
+                        flagDefault = 0
                     
                     cursor += 1
                     temp = [x for x in parameters[cursor] if x != '']
@@ -527,13 +513,16 @@ class FGD:
                             line[1] = parent.stringDict[ line[1] ]
                         if valueType == 'flags':
                             if line[2] == '1':
-                                default += int(line[0])
+                                flagDefault += int(line[0])
                         choices[line[0]] = line[1]
+                    
+                    if valueType == 'flags':
+                        default = str(flagDefault)
 
                 try:
-                    valueType = self._convertType(valueType, choices)
+                    valueType = self._convertType(valueType)
                     default = self._parseDefault(valueType, default, choices)
-    
+                    
                     param = FGD.Parameter(name, valueType, default, shortDescription, longDescription, choices)
                     if kind == 'input':
                         self.inputs.append(param)
@@ -548,130 +537,110 @@ class FGD:
                     print("|".join([str(x) for x in [valueType, default, choices, shortDescription, longDescription]]))
                 cursor += 1
         
-        def _convertType(self, type, choices):
-            if choices == None:
-                for conversionType in FGD._CONVERSION.keys():
-                    if type in FGD._CONVERSION[conversionType]:
-                        return conversionType
-            elif len(choices) > 0:
-                ## @todo make less ugly 
-                if tuple(choices.keys())[0].__class__ == int.__class__:
-                    return FGD.INTEGER
-                else:
-                    return FGD.STRING
-            else:
-                print("@_@", type, choices)
+        def _convertType(self, _type):
+            for conversionType in FGD._CONVERSION.keys():
+                if _type in FGD._CONVERSION[conversionType]:
+                    return conversionType
+            
+            raise Exception("Could not convert type: " + _type)
         
-        def _parseDefault(self, type, default, choices):
-            if choices == None:
-                if type == FGD.INTEGER:
-                    if default != None:
-                        return int(default)
-                    else:
-                        return 0
-                elif type == FGD.FLOAT:
-                    if default != None:
-                        return float(default)
-                    else:
-                        return 0.0
-                elif type == FGD.INTEGER_LIST:
-                    if default != None:
-                        return SDKUtil.getNumbers(default, int)
-                    else:
-                        return [0,0,0]
-                elif type in (FGD.VECTOR, FGD.FLOAT_LIST, FGD.ANGLE):
-                    if default != None:
-                        return SDKUtil.getNumbers(default, float)
-                    else:
-                        return [0.0, 0.0, 0.0]
-                elif type == FGD.ANGLE:
-                    if default != None:
-                        # Convert from YZX to XYZ
-                        angle = SDKUtil.getNumbers(default, float)
-                        return [angle[2], angle[0], angle[1]]
-                    else:
-                        return [0.0, 0.0, 0.0]
-                elif type == FGD.AXIS:
-                    if default != None:
-                        #print("AXIS: ", choices, default)
-                        floats = SDKUtil.getNumbers(default, float)
-                        return [floats[0:3],floats[3:6]]
-                    else:
-                        [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+        def _parseDefault(self, _type, default, choices):
+            assert(_type in FGD._CONVERSION.keys())
+            if _type == FGD.BOOLEAN:
+                if default != None:
+                    try:
+                        return bool(default)
+                    except ValueError:
+                        return False
                 else:
-                    if default != None:
-                        return default
-                    else:
-                        return ''
-            else:
+                    return False
+            elif _type == FGD.INTEGER:
+                if default != None:
+                    try:
+                        return int(default)
+                    except ValueError:
+                        return 0
+                else:
+                    return 0
+            elif _type == FGD.FLOAT:
+                if default != None:
+                    try:
+                        return float(default)
+                    except ValueError:
+                        return 0.0
+                else:
+                    return 0.0
+            elif _type == FGD.INTEGER_LIST:
+                if default != None:
+                    return SDKUtil.getNumbers(default, int)
+                else:
+                    return [0,0,0]
+            elif _type in (FGD.VECTOR, FGD.FLOAT_LIST, FGD.ANGLE):
+                if default != None:
+                    return SDKUtil.getNumbers(default, float)
+                else:
+                    return [0.0, 0.0, 0.0]
+            elif _type == FGD.ANGLE:
+                if default != None:
+                    # Convert from YZX to XYZ
+                    angle = SDKUtil.getNumbers(default, float)
+                    return [angle[2], angle[0], angle[1]]
+                else:
+                    return [0.0, 0.0, 0.0]
+            elif _type == FGD.AXIS:
+                if default != None:
+        
+                    floats = SDKUtil.getNumbers(default, float)
+                    return [floats[0:3],floats[3:6]]
+                else:
+                    [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+            elif _type == FGD.CHOICE:
+                if default == None:
+                    default = tuple(choices.keys())[0]
+                    
+                # Turn to integer if possible
+                try:
+                    default = int(default)
+                except ValueError:
+                    pass
+                
+                return default
+            elif _type == FGD.STRING:
                 if default != None:
                     return default
                 else:
-                    return tuple(choices.keys())[0]
-
-        ## generate a simple summary of the entity's parameters
-        #
-        #  @return list of parameter summaries
-        #  @sa Parameter.report()
-        def reportParameters(self):
-            return [x.report() for x in self.parameters]
+                    return ""
+            elif _type == FGD.VOID:
+                return None
+            else:
+                raise Exception("Not supported type.")
 
     ## container for parameter data
     class Parameter:
 
-        ##approximate the data type
-        @staticmethod
-        def _zayifier(fgdtype):
-            if fgdtype == 'void':
-                return FGD.VOID
-            if fgdtype in [
-                'string','sound','material','sprite','scene','filterclass',
-                'studio','target_destination',
-                'target_name_or_class','pointentityclass',
-                'target_source','npcclass'
-                ]:
-                return FGD.STRING
-            if fgdtype in ['integer', 'node_dest', 'flags']:
-                return FGD.INTEGER
-            if fgdtype == 'float':
-                return FGD.FLOAT
-            if fgdtype == 'choices':
-                return FGD.CHOICES
-            if fgdtype in ['color255','color1', 'sidelist']:
-                return FGD.SEQUENCE
-            if fgdtype in ['vector']:
-                return FGD.VECTOR
-            if fgdtype in ['angle']:
-                return FGD.ANGLE
-            if fgdtype in ['origin', 'axis', 'vecline']:
-                return FGD.POSITION
-
         ## constructor
         #
         #  @param name name
-        #  @param valueType data type
+        #  @param _type data type
         #  @param default default value
-        #  @param shortDescription summary of purpose
-        #  @param longDescription explanation of purpose
+        #  @param summary summary of purpose
+        #  @param description explanation of purpose
         #  @param choices dictionary of multiple choice options
         #
-        def __init__(self, name, valueType, default, shortDescription, longDescription, choices):
+        def __init__(self, name, _type, default, summary, description, choices):
             ## name of parameter
             self.name = name
             ## data type
-            self.type = valueType
+            self.type = _type
             ## default value
             self.default = default
             ## summary of purpose
-            self.summary = shortDescription
+            self.summary = summary
             ## longer explanation
-            self.description = longDescription
+            self.description = description
             ## dictionary of valid multiple choice options if data type is 'choices'
-            self.choices  = choices
-
-        ## get a simple summary of the parameter
-        #
-        #  @return [name, type constant, default value]
-        def report(self):
-            return [self.name, FGD.Parameter._zayifier(self.type), self.default]
+            self.choices = choices
+        
+        def __repr__(self):
+            return "FGD.Entity.Parameter[name=%s type=%s default=%s summary=%s description=%s choices=%s]" % (self.name, self.type, self.default, self.summary, self.description, self.choices)
 

@@ -152,13 +152,7 @@ class SDKUtil:
     #
     @staticmethod
     def getNumbers(string, cast):
-        string = string.replace(",","")
-        string = string.replace("(","")
-        string = string.replace(")","")
-        string = string.replace("[","")
-        string = string.replace("]","")
-        
         return list(map(
             cast,
-            re.findall("\S+", string)
+            re.findall(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", string)
             ))
