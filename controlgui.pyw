@@ -75,11 +75,6 @@ class ControlGUI:
         ## GUI window for displaying information about the generation and
         #  compilation process
         self.progressGUI = None
-
-        #load modules
-        ## set of all currently loaded modules
-        self.loadedModules = set()
-        self.reloadModules()
         
         #gui variable objects
         ## Value of GUI generator selection menu
@@ -275,10 +270,16 @@ class ControlGUI:
             qualityButton,
             optionGame
             ]
-
-        #update GUI elements that depend on what modules are loaded
-        self.updateGUIModules()
-
+ 
+        #load modules
+        ## set of all currently loaded modules
+        self.loadedModules = set() #none loaded yet
+        # schedule this for after the window has itself set up, otherwise error dialogs will
+        # mess up focus for the Map name text entry box.
+        # this is actually a bug in Tkinter, seemingly: http://bugs.python.org/issue9673
+        # self.refreshModules loads/reloads modules and then updates the GUI
+        self.window.after_idle(self.refreshModules)
+        
         #run GUI
         #blocks until it is closed
         self.window.mainloop()
