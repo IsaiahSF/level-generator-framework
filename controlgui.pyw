@@ -36,11 +36,31 @@ from gameids import *
 #  @image html "LGF Class Diagram.png"
 #
 
-## The main GUI
-class ControlGUI:
 
-    ## Where to store generated levels
-    mapLocation = os.path.abspath('./maps')
+## Centrally defined locations for data files
+#
+#  @todo add preset data and prefab data
+#
+class DirectoryLayout:
+    ## base directory of LGF
+    LGFpath = os.path.abspath(os.getcwd())
+    
+    ## dict of keys and respective directory locations
+    paths = {
+        'file'      : LGFpath + '\\maps',
+        }
+    
+    @staticmethod
+    def getPath(key):
+        return DirectoryLayout.paths[key]
+
+## The main GUI
+#
+#  @bug If there is an error loading a module (and a warning dialog pops up and is closed),
+#  the map filename box won't take focus (and can't type in it) until focus is shifted to
+#  another window and back.
+#
+class ControlGUI:
 
     ## Constructor.
     #
@@ -550,7 +570,7 @@ class ControlGUI:
             del self.executors[fmt]
         for fmt in (set(self.maps.keys()) - set(self.executors.keys())):
             del self.maps[fmt]
-        #make sure we have at least some modules to work with
+        #make sure we have at least a minimum to work with
         if len(self.executors)==0:
             ErrorFatal("No format modules.", self.window.destroy)
         if len(self.generators)==0:
@@ -622,7 +642,7 @@ class ControlGUI:
     ## Return an open map object appropriate for the current game selected
     #
     #  The file name is already determined as
-    #  (ControlGUI.mapLocation)(prefix)(number).(format)
+    #  (map folder)/(prefix)(number).(format)
     #  (prefix) is selected by the user in the gui.
     #  (number) is an integer that increments with each map request. reset each
     #  time the generator is run.
@@ -634,7 +654,7 @@ class ControlGUI:
         #determine name of new file
         game = self.gameSelect.get()
         extension = getGameFormat(game)
-        path = ControlGUI.mapLocation + '/' + self.nameSelect.get()
+        path = DirectoryLayout.getPath('file') + '/' + self.nameSelect.get()
         path = path + str(1 + len(self.mapFiles)) #add number
         path = path + '.' + extension #add format extension
         self.mapFiles.append(path)
