@@ -534,13 +534,13 @@ class Solid:
 
     ## Create a rectangular displacement
     #
-    #  @todo implement
-    #
     #  @param parent VMF containing this displacement
     #  @param pos bottom lower left corner (x,y,z)
     #  @param size size of displacement
     #  @param heightMap square array of height values. Height values are absolute.
     #  @param material texture of displacement
+    #
+    #  @return VMF solid object
     @staticmethod
     def fromHeightMap(parent, pos, size, heightMap, material=""):
         power = math.log(len(heightMap) - 1)/math.log(2)
@@ -926,11 +926,10 @@ class Side:
         elif power in Side.POWERS:
             if self.power != power:
                 self._vertexNum = int(2**power + 1)
-                ## @todo fixme - coordinate values too large? Ideally would be the real corner of the brush.
-                ## @bug (anticipated) If displacement is rotated after it is created
-                #  the startPosition coordinate will be wrong.
-                #  fix - transform startPosition value?
-                self._startPosition = [-16384, -16384, -16384]
+                ## @todo fixme - startPosition should be the real corner of the brush.
+                #  @bug (confirmed) displacements in far NE corner are corrupted. startPosition too far away. Looks like an overflow error.
+                #  @bug (confirmed) in non-rectangular displacements, a corner other than the one intended can be closer to startPosition - ruins displacement
+                self._startPosition = [-8192, -8192, -8192]
                 self._displacement = []
                 for x in range(0, self._vertexNum):
                     row = []
@@ -1214,6 +1213,11 @@ class Side:
                 )
         
         self.plane = [matrix.transformPoint(p) for p in self.plane]
+        
+        #if it is a displacement, transform the startPosition value.
+        #No modification of offset or alpha data should be needed.
+        if self._vertexNum != 0:
+            self._startPosition = matrix.transformPoint(self._startPosition)
 
         if materialLock:
             uAxis = matrix.transformTextureAxis(self.textureAxes[0])
@@ -1252,7 +1256,7 @@ class Side:
                 ]
 
 
-            print("Texture axes:", self.textureAxes)
+            print("Texture axes:", self.textureAxes) ## @fixme was someone in the middle of debugging something?
             x = matrix._matrix[0][3]
             y = matrix._matrix[1][3]
             z = matrix._matrix[2][3]
