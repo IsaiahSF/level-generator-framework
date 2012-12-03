@@ -148,19 +148,19 @@ class FGD:
             elif gameId == gameids.HL2EP2:
                 path += "/sourcesdk/bin/source2009/bin/halflife2.fgd"
             elif gameId == gameids.P1:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.P2:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.L4D1:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.L4D2:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.TF2:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.CSS:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             elif gameId == gameids.GMOD:
-                raise NotImplementedError()
+                raise NotImplementedError() ## @todo implement
             
             cls._FGDDict[gameId] = FGD(path)
 
@@ -406,11 +406,13 @@ class FGD:
             ## list of Hammer display elements
             self.display = []
             ## list of entity member variables that can be set
-            self.parameters = []
+            #these are only dicts while parsing, at the end they are only lists
+            #this forces uniqueness of parameters, and overwrites upon duplication
+            self.parameters = {}
             ## list of entity inputs
-            self.inputs = []
+            self.inputs = {}
             ## list of entity outputs
-            self.outputs = []
+            self.outputs = {}
 
             #parse classLine
             #parse description
@@ -460,9 +462,12 @@ class FGD:
                     bases = [x.strip() for x in e[1][0].split(',')] #get list of classes to inherit from
                     for base in bases:
                         base = self.parent.entities[base]
-                        self.parameters.extend(base.parameters)
-                        self.inputs.extend(base.inputs)
-                        self.outputs.extend(base.outputs)
+                        for param in base.parameters:
+                            self.parameters[param.name] = param
+                        for param in base.inputs:
+                            self.inputs[param.name] = param
+                        for param in base.outputs:
+                            self.outputs[param.name] = param
             
             #parse parameters
             cursor = 0
@@ -525,17 +530,22 @@ class FGD:
                     
                     param = FGD.Parameter(name, valueType, default, shortDescription, longDescription, choices)
                     if kind == 'input':
-                        self.inputs.append(param)
+                        self.inputs[param.name] = param
                     elif kind == 'output':
-                        self.outputs.append(param)
+                        self.outputs[param.name] = param
                     elif kind == None:
-                        self.parameters.append(param)
+                        self.parameters[param.name] = param
                     else:
                         raise Exception('Parameter must only be prepended with input or output.')
                 except Exception as e:
                     print("Exception", e)
                     print("|".join([str(x) for x in [valueType, default, choices, shortDescription, longDescription]]))
                 cursor += 1
+            
+            #convert inputs, outputs, parameters into lists
+            self.inputs = self.inputs.values()
+            self.outputs = self.outputs.values()
+            self.parameters = self.parameters.values()
         
         def _convertType(self, _type):
             for conversionType in FGD._CONVERSION.keys():

@@ -29,6 +29,12 @@ class KeyValueDict:
         else:
             self.dict[key] = [value]
 
+    ## Boolean check whether the specified key is present
+    #
+    #  @return boolean
+    def __contains__(self, key):
+        return key in self.dict
+
     ## Returns a list of values associated with the key
     #
     #  @param key key of the value list
@@ -202,7 +208,7 @@ class VMF:
         versionKVD = vmfKVD["versioninfo"][0]
         self.prefab = bool(int(versionKVD["prefab"][0]))
 
-        if "viewsettings" in vmfKVD.keys():
+        if "viewsettings" in vmfKVD:
             viewKVD = vmfKVD["viewsettings"][0]
             self.snapToGrid = bool(int(viewKVD["bSnapToGrid"][0]))
             self.showGrid = bool(int(viewKVD["bShowGrid"][0]))
@@ -216,19 +222,24 @@ class VMF:
         self.sky = worldKVD["skyname"][0]
 
         self.solids = []
-        if "solid" in worldKVD.keys():
+        if "solid" in worldKVD:
             for solidKVD in worldKVD["solid"]:
                 solid = Solid.fromKVD(self, solidKVD)
 
         self.entities = []
-        if "entity" in vmfKVD.keys():
+        if "entity" in vmfKVD:
             for entityKVD in vmfKVD["entity"]:
                 entity = Entity.fromKVD(self, entityKVD)
 
-        cordonKVD = vmfKVD["cordon"][0]
-        self.cordonMin = SDKUtil.getNumbers(cordonKVD["mins"][0], float)
-        self.cordonMax = SDKUtil.getNumbers(cordonKVD["maxs"][0], float)
-        self.cordonActive = bool(int(cordonKVD["active"][0]))
+        if "cordon" in vmfKVD:
+            cordonKVD = vmfKVD["cordon"][0]
+            self.cordonMin = SDKUtil.getNumbers(cordonKVD["mins"][0], float)
+            self.cordonMax = SDKUtil.getNumbers(cordonKVD["maxs"][0], float)
+            self.cordonActive = bool(int(cordonKVD["active"][0]))
+        else:
+            self.cordonMin = [-1024, -1024, -1024]
+            self.cordonMax = [1024, 1024, 1024]
+            self.cordonActive = False
 
     def _findMaxId(self):
         maxId = 0
@@ -238,9 +249,8 @@ class VMF:
             for side in solid.sides:
                 maxId = max([maxId, side.id])
 
-        ## @todo FIXME: entities
         for entity in self.entities:
-            pass
+            maxId = max([maxId, entity.id])
 
         return maxId
 
@@ -322,25 +332,31 @@ class VMF:
     #  @param materialLock translate and rotate textures with brushes
     #  @param materialScaleLock scale textures with brushes
     def addPrefab(self, prefab, pos=[0,0,0], rot=[0,0,0], scale=[1,1,1], materialLock=True, materialScaleLock=True):
-        print("Adding prefab...")
         s = Matrix.fromScale(scale[0], scale[1], scale[2])
         r = Matrix.fromAngles(rot[0], rot[1], rot[2])
         t = Matrix.fromTranslate(pos[0], pos[1], pos[2])
         
-        solids = copy.deepcopy(prefab.solids)
-        for solid in solids:
-            solid.transform(s, materialLock, materialScaleLock)
-            solid.transform(r, materialLock, materialScaleLock)
-            solid.transform(t, materialLock, materialScaleLock)
+        #copy solids
+        newsolids = []
+        for solid in prefab.solids:
+            newsolids.append(solid.copy(self))
+        #transform solids
+        for solid in newsolids:
+            solid.transform(s, materialLock, materialScaleLock, [0,0,0])
+            solid.transform(r, materialLock, materialScaleLock, [0,0,0])
+            solid.transform(t, materialLock, materialScaleLock, [0,0,0])
         
-        entities = copy.deepcopy(prefab.entities)
+        #copy entites
+        newentities = []
+        for entity in prefab.entities:
+            newentities.append(entity.copy(self))
+        #transform entities
+        for entity in newentities:
+            entity.transform(s, materialLock, materialScaleLock, [0,0,0])
+            entity.transform(r, materialLock, materialScaleLock, [0,0,0])
+            entity.transform(t, materialLock, materialScaleLock, [0,0,0])
+        ## @todo modify entity names and outputs so they don't interfere with other copies of the prefab, etc
 
-
-        
-        ## @todo FIXME generate new IDs!
-        self.solids.extend(solids)
-        self.entities.extend(entities)
-        
 
 ## VMF Solid. Used for brushes and also displacements.
 class Solid:
@@ -385,13 +401,16 @@ class Solid:
 
     ## Create a copy
     #
+    #  @param parent parent object of copy
+    #
     #  @return Solid
-    def copy(self):
-        new = Solid(self.parent)
-        print(len(self.sides))
+    def copy(self, parent = None):
+        if parent == None:
+            parent = self.parent
+        new = Solid(parent)
+        new.origin = self.origin
         for side in self.sides:
-            print('side copy')
-            new.sides.append(side.copy())
+            new.sides.append(side.copy(new))
         return new
 
     ## INTERNAL! Create Solid from Key-value dictionary. Used in parsing VMF files.
@@ -781,18 +800,16 @@ class Solid:
     #  @param transform a 4x4 transformation matrix
     #  @param materialLock If true, textures are transformed with the solid.
     #  (Hammer calls it texture lock.)
-    #  @param materialScaleLock If true, textures scale with the brush.
-    #  @param origin optional transformation origin to override brush origin
+    #  @param materialScaleLock If true, textures scale with the solid.
+    #  @param origin optional transformation origin to override solid origin
     #
     #  @sa Matrix
     def transform(self, transform, materialLock=False, materialScaleLock=False, origin=None):
         if origin == None:
-            for side in self.sides:
-                side.transform(transform, materialLock, materialScaleLock, self.origin)
-            self.origin = transform.transformPoint(self.origin)
-        else:
-            for side in self.sides:
-                side.transform(transform, materialLock, materialScaleLock, origin)
+            origin = self.origin
+        for side in self.sides:
+            side.transform(transform, materialLock, materialScaleLock, origin)
+        self.origin = transform.transformPoint(origin)
 
 
 ## side/face of a vmf solid. Contains displacement information if this side is a
@@ -841,13 +858,17 @@ class Side:
 
     ## Create a copy
     #
+    #  @param parent parent object of copy
+    #
     #  @return Side
-    def copy(self):
+    def copy(self, parent=None):
         new = copy.copy(self)
+        if parent != None:
+            new.parent = parent
+        new.id = new.parent.generateId()
         new.textureAxes = copy.copy(self.textureAxes)
         new.offset = copy.copy(self.offset)
         new.scale = copy.copy(self.scale)
-        new.id = new.parent.generateId()
         return new
 
     ## Create a side using 1 point on the plane and 1 normal vector
@@ -932,10 +953,10 @@ class Side:
                 self._startPosition = [-8192, -8192, -8192]
                 self._displacement = []
                 for x in range(0, self._vertexNum):
-                    row = []
+                    column = []
                     for y in range(0, self._vertexNum):
-                        row.append([0,0,0])
-                    self._displacement.append(row)
+                        column.append([0,0,0])
+                    self._displacement.append(column)
                 self._alpha = []
                 for x in range(0, self._vertexNum):
                     self._alpha.append([0]*self._vertexNum)
@@ -1256,7 +1277,7 @@ class Side:
                 ]
 
 
-            print("Texture axes:", self.textureAxes) ## @fixme was someone in the middle of debugging something?
+            #print("Texture axes:", self.textureAxes) ## @fixme was someone in the middle of debugging something?
             x = matrix._matrix[0][3]
             y = matrix._matrix[1][3]
             z = matrix._matrix[2][3]
@@ -1306,7 +1327,6 @@ class Entity(object):
     
     ## @todo tidy up
     ## @todo add output/connection interface
-    ## @todo support transforms
 
     ## constructor
     #
@@ -1322,6 +1342,9 @@ class Entity(object):
         self.classname = classname
         self.parent.entities.append(self)
         
+        ## unique node ID
+        self.id = parent.generateId()
+        
         definition = FGD.getGameFGD(self.parent.gameId)[self.classname]
 
         ## entity properties
@@ -1329,7 +1352,7 @@ class Entity(object):
         for parameter in definition.parameters:
             self.properties[parameter.name] = copy.copy(parameter.default)
         
-        if not "origin" in self.properties.keys():
+        if not "origin" in self.properties:
             self.properties["origin"] = [0.0, 0.0, 0.0]
 
         ## outputs to other entities. Used to trigger things, etc.
@@ -1343,6 +1366,20 @@ class Entity(object):
 
         for key in kwargs:
             self[key] = kwargs[key]
+
+    ## Create a copy
+    #
+    #  @todo does not change entity outputs - will interfere with anything that uses the same names, like other copies of the prefab
+    #
+    #  @param parent parent of the copy
+    #  @return Entity
+    def copy(self, parent):
+        new = Entity(parent, self.classname)
+        new.properties = dict(self.properties)
+        new.outputs = dict(self.outputs)
+        for solid in self.solids:
+            solid.copy(new)
+        return new
 
     ## Generate unique ID for a Solid associated with this Entity
     def generateId(self):
@@ -1362,6 +1399,7 @@ class Entity(object):
     @classmethod
     def fromKVD(cls, parent, entityKVD):
         entity = Entity(parent, entityKVD["classname"][0])
+        entity.id = int(entityKVD["id"][0])
         
         definition = FGD.getGameFGD(parent.gameId)[entityKVD["classname"][0]]
         for parameter in definition.parameters:
@@ -1383,13 +1421,15 @@ class Entity(object):
                     entity.properties[parameter.name] = SDKUtil.getNumbers(
                         entityKVD[parameter.name][0], float
                     )
-                elif parameter.type == FGD.ANGLE:
-                    # Convert from YZX to XYZ
-                    angle = SDKUtil.getNumbers(
-                        entityKVD[parameter.name][0], float
-                    )
-                    
-                    entity.properties[parameter.name] = [angle[2], angle[0], angle[1]]
+                ## @todo FIXME unreachable
+                ## @todo convert angle order to match rest of LGF (XYZ order) (it probably requires trig - naive method below won't work)
+                #elif parameter.type == FGD.ANGLE: 
+                #    # Convert from YZX to XYZ
+                #    angle = SDKUtil.getNumbers(
+                #        entityKVD[parameter.name][0], float
+                #    )
+                #    entity.properties[parameter.name] = [angle[2], angle[0], angle[1]]
+                
                 # Right handed
                 # X = Roll = +counter-clockwise/-clockwise
                 # Y = Pitch = +counter-clockwise/-clockwise
@@ -1458,11 +1498,20 @@ class Entity(object):
     ## INTERNAL!! export to key-value list format. Used in saving VMF files
     def toKVL(self):
         entityKVL = KeyValueList()
+        entityKVL.add("id", str(self.id))
         entityKVL.add("classname", self.classname)
+        
+        if "origin" in self.properties:
+            entityKVL.add(
+                "origin",
+                "%g %g %g" % tuple(self.properties["origin"])
+                )
         
         definition = FGD.getGameFGD(self.parent.gameId)[self.classname]
         for parameter in definition.parameters:
-            if parameter.type in (FGD.INTEGER, FGD.FLOAT):
+            if parameter.name == "origin":
+                pass
+            elif parameter.type in (FGD.INTEGER, FGD.FLOAT):
                 entityKVL.add(
                     parameter.name,
                     "%g " % self.properties[parameter.name]
@@ -1476,14 +1525,16 @@ class Entity(object):
                     parameter.name,
                     valueStr
                     )
-            elif parameter.type == FGD.ANGLE:
-                # Convert from XYZ to YZX
-                entityKVL.add(
-                    parameter.name,
-                    "%g %g %g" % (self.properties[parameter.name][1],
-                                  self.properties[parameter.name][2],
-                                  self.properties[parameter.name][0])
-                    )
+            ## @todo FIXME unreachable
+            ## @todo convert angle order to match rest of LGF (XYZ order) (it probably requires trig - naive method below won't work)
+            #elif parameter.type == FGD.ANGLE:
+            #    # Convert from XYZ to YZX
+            #    entityKVL.add(
+            #        parameter.name,
+            #        "%g %g %g" % (self.properties[parameter.name][1],
+            #                      self.properties[parameter.name][2],
+            #                      self.properties[parameter.name][0])
+            #        )
             elif parameter.type == FGD.AXIS:                
                 valueStr = ""
                 if type(self.properties[parameter.name][0]) == list:
@@ -1510,12 +1561,6 @@ class Entity(object):
                     str(self.properties[parameter.name])
                     )
         
-        if "origin" in self.properties.keys():
-            entityKVL.add(
-                "origin",
-                "%g %g %g" % tuple(self.properties["origin"])
-                )
-        
         connectionsKVL = KeyValueList()
         for output in self.outputs.keys():
             for connection in self.outputs[output]:
@@ -1540,6 +1585,36 @@ class Entity(object):
             entityKVL.add("solid", solidKVL)
         
         return entityKVL
+    
+    ## transform the entity using a transformation matrix
+    #
+    #  @todo test (especially that all entity parameters are transformed correctly)
+    #
+    #  @param transform a 4x4 transformation matrix
+    #  @param materialLock If true, textures are transformed with the solids (if any).
+    #  (Hammer calls it texture lock.)
+    #  @param materialScaleLock If true, textures scale with the solids (if any).
+    #  @param origin optional transformation origin to override entity origin
+    #
+    #  @sa Matrix
+    def transform(self, transform, materialLock=False, materialScaleLock=False, origin=None):
+        if origin == None:
+            origin = self.properties["origin"]
+        #transform solids
+        for solid in self.solids:
+            solid.transform(transform, materialLock, materialScaleLock, origin)
+        #transform spatial properties
+        self.properties["origin"] = transform.transformPoint(self.properties["origin"])
+        for parameter in FGD.getGameFGD(self.parent.gameId)[self.classname].parameters:
+            if parameter.name == "origin":
+                pass
+            elif parameter.name in self.properties:
+                if parameter.type in [FGD.VECTOR, FGD.AXIS]:
+                    self.properties[parameter.name] = transform.transformPoint(self.properties[parameter.name])
+                elif parameter.type is FGD.ANGLE:
+                    ## @todo fix transform.transformAngles
+                    #self.properties[parameter.name] = transform.transformAngles(self.properties[parameter.name])
+                    pass
 
 
 ## A special four by four matrix for transformations such as scaling, rotation,
@@ -1757,3 +1832,48 @@ class Matrix:
             self._matrix[2][2]*point[2] + \
             self._matrix[2][3]
         return [x,y,z]
+    
+    
+    ## Apply full matrix transformation to entity angles
+    #
+    #  @param angles entity "angles" parameter value (in yzx order)
+    #  @return modified angles parameter
+    def transformAngles(self, angles):
+        #work out angles from our matrix
+        #if we ignore the last row and column, it is a rotation matrix (...I think)
+        #we can figure out the angles from this.
+        
+        #entity angles are in YZX order.
+        #composition:
+        #http://en.wikipedia.org/wiki/Euler_angles#Matrix_orientation
+        #decomposition:
+        #http://www.geometrictools.com/Documentation/EulerAngles.pdf
+
+        ## @todo this is broken on rotations around z axis, especially 90 and -90 degrees
+        m = lambda x : self._matrix[int(x/10)][x%10]
+        x = 0
+        y = 0
+        z = 0
+        if m(10) < 1:
+            if m(10) > -1:
+                z = math.asin(m(10))
+                y = math.atan2(-m(20),m(00))
+                x = math.atan2(-m(12),m(11))
+            else: #m(10) == -1
+                #no unique solution
+                z = -math.pi/2
+                y = -math.atan2(m(21),m(22))
+                x = 0
+        else: #m(10) == 1
+            #no unique solution
+            z = math.pi/2
+            y = math.atan2(m(21),m(22))
+            x = 0
+            
+        
+        result = [
+            angles[0] + math.degrees(y),
+            angles[1] + math.degrees(z),
+            angles[2] + math.degrees(x)
+        ]
+        return result
