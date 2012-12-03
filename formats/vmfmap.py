@@ -124,7 +124,7 @@ class VMFMap(Map):
         if ammoType == None:
             return
         if type(ammoType) == list:
-            e = Entity(self._native, ammoType[0])
+            e = Entity(self._native, ammoType[0], origin)
             for prop in ammoType[1:]:
                 e[prop[0]] = prop[1]
         else:
