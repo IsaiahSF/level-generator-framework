@@ -122,6 +122,7 @@ class VMF:
         
         self.gameId = gameId
         self._currentId = 1
+        self._prefabCounter = 0 # Counter for replacing '%i' with appropriate prefab number in prefabs
         if filename == None:
             self._setupEmptyMap()
         else:
@@ -216,9 +217,21 @@ class VMF:
             self.show3DGrid = bool(int(viewKVD["bShow3DGrid"][0]))
 
         worldKVD = vmfKVD["world"][0]
-        self.detailMaterial = worldKVD["detailmaterial"][0]
-        self.detailVBSP = worldKVD["detailvbsp"][0]
-        self.maxPropScreenWidth = int(worldKVD["maxpropscreenwidth"][0])
+        if "detailmaterial" in worldKVD:
+            self.detailMaterial = worldKVD["detailmaterial"][0]
+        else:
+            self.detailMaterial = ""
+        
+        if "detailvbsp" in worldKVD:
+            self.detailVBSP = worldKVD["detailvbsp"][0]
+        else:
+            self.detailVBSP = ""
+        
+        if "maxpropscreenwidth" in worldKVD:
+            self.maxPropScreenWidth = int(worldKVD["maxpropscreenwidth"][0])
+        else:
+            self.maxPropScreenWidth = ""
+        
         self.sky = worldKVD["skyname"][0]
 
         self.solids = []
@@ -337,25 +350,36 @@ class VMF:
         t = Matrix.fromTranslate(pos[0], pos[1], pos[2])
         
         #copy solids
-        newsolids = []
+        newSolids = []
         for solid in prefab.solids:
-            newsolids.append(solid.copy(self))
+            newSolids.append(solid.copy(self))
         #transform solids
-        for solid in newsolids:
+        for solid in newSolids:
             solid.transform(s, materialLock, materialScaleLock, [0,0,0])
             solid.transform(r, materialLock, materialScaleLock, [0,0,0])
             solid.transform(t, materialLock, materialScaleLock, [0,0,0])
         
         #copy entites
-        newentities = []
+        newEntities = []
         for entity in prefab.entities:
-            newentities.append(entity.copy(self))
+            newEntities.append(entity.copy(self))
+            
         #transform entities
-        for entity in newentities:
+        for entity in newEntities:
             entity.transform(s, materialLock, materialScaleLock, [0,0,0])
             entity.transform(r, materialLock, materialScaleLock, [0,0,0])
             entity.transform(t, materialLock, materialScaleLock, [0,0,0])
-        ## @todo modify entity names and outputs so they don't interfere with other copies of the prefab, etc
+            
+        #change names so they don't interfere
+        for entity in newEntities:
+            for key in entity.getPropertyNames():
+                if type(entity[key]) == str:
+                    entity[key] = entity[key].replace("&i", str(self._prefabCounter))
+            for outputName in entity.outputs.keys():
+                for output in entity.outputs[outputName]:
+                    output.target = output.target.replace("&i", str(self._prefabCounter))
+
+        self._prefabCounter += 1
 
 
 ## VMF Solid. Used for brushes and also displacements.
@@ -1384,6 +1408,9 @@ class Entity(object):
     ## Generate unique ID for a Solid associated with this Entity
     def generateId(self):
         return self.parent.generateId()
+    
+    def getPropertyNames(self):
+        return self.properties.keys()
 
     ## can get the value of entity properties using Entity[propName]
     def __getitem__(self, key):
