@@ -597,6 +597,7 @@ class ControlGUI:
             if not modulename in self.loadedModules:
                 #loading module for the first time
                 try:
+                    assert ' ' not in modulename #spaces not allowed in file names
                     exec('import ' + modulename) #import module
                 except ImportError as e:
                     #import errors usually result from missing library

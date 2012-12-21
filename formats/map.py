@@ -164,12 +164,13 @@ class Map:
     ## Create height displacement
     #
     #  @param coords 4 2D [x,y] coordinates defining the 4 corners of the
-    #  displacement.
+    #  displacement, starting in lower left corner.
     #  @param elevation The base elevation of the displacement
-    #  @param heightData height data. These values are added to the elevation.
+    #  @param heightData height data. These values are added to the elevation, meaning they are relative.
     #  Must be 2 dimensional array. Array must be square, with dimensions of
-    #  4, 8, or 16.
-    def heightDisplacement(self, coords, elevation, heightData):
+    #  5, 9, or 17.
+    #  @param material material displacement will be textured with
+    def heightDisplacement(self, coords, elevation, heightData, material=""):
         raise NotImplementedError
 
     ## Place a rectangular brush.

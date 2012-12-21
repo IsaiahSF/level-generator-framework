@@ -600,6 +600,7 @@ class Solid:
             offsets.append([[0,0,z-pos[2]-size[2]] for z in row])
         solid.sides[0].power = power
         solid.sides[0].displacement = offsets
+        solid.sides[0]._startPosition = [pos[0], pos[1], pos[2]]
         return solid
 
     ## Create cylindrical solid
@@ -833,7 +834,7 @@ class Solid:
             origin = self.origin
         for side in self.sides:
             side.transform(transform, materialLock, materialScaleLock, origin)
-        self.origin = transform.transformPoint(origin)
+        self.origin = transform.transformVector(origin)
 
 
 ## side/face of a vmf solid. Contains displacement information if this side is a
@@ -1094,7 +1095,7 @@ class Side:
                 dispInfoKVD["startposition"][0], float
             )
         else:
-            side_startPosition = [0, 0, 0]
+            side._startPosition = [0, 0, 0]
 
         # Get normals
         normalsKVD = dispInfoKVD["normals"][0]
@@ -1120,15 +1121,15 @@ class Side:
 
         # Generate displacement from normals and distances
         side._displacement = []
-        for y in range(0, side.vertexNum):
-            row = []
-            for x in range(0, side.vertexNum):
-                row.append(
+        for x in range(0, side.vertexNum):
+            column = []
+            for y in range(0, side.vertexNum):
+                column.append(
                     [distances[y][x] * normals[y][x*3],
                      distances[y][x] * normals[y][x*3 + 1],
                      distances[y][x] * normals[y][x*3 + 2]]
                     )
-            side._displacement.append(row)
+            side._displacement.append(column)
 
         # Get the alpha
         alphasKVD = dispInfoKVD["alphas"][0]
@@ -1219,9 +1220,9 @@ class Side:
 
             offsetsKVL = KeyValueList()
             offsetNormalsKVL = KeyValueList()
-            for y in range(0, len(self.displacement)):
+            for y in range(0, len(self.displacement[0])):
                 offsetsRow = ""
-                for x in range(0, len(self.displacement[y])):
+                for x in range(0, len(self.displacement)):
                     offsetsRow += "%g %g %g " % tuple(self.displacement[x][y])
                     
                 offsetsKVL.add("row%i" % y, offsetsRow)
@@ -1257,16 +1258,22 @@ class Side:
                 materialScaleLock
                 )
         
-        self.plane = [matrix.transformPoint(p) for p in self.plane]
+        self.plane = [matrix.transformVector(p) for p in self.plane]
         
-        #if it is a displacement, transform the startPosition value.
-        #No modification of offset or alpha data should be needed.
+        #if it is a displacement, transform startPosition and offset data
         if self._vertexNum != 0:
-            self._startPosition = matrix.transformPoint(self._startPosition)
+            self._startPosition = matrix.transformVector(self._startPosition)
+            offsets = []
+            for x in range(len(self._displacement)):
+                column = []
+                for y in range(len(self._displacement)):
+                    column.append(matrix.rotateVector(self._displacement[x][y]))
+                offsets.append(column)
+            self._displacement = offsets
 
         if materialLock:
-            uAxis = matrix.transformTextureAxis(self.textureAxes[0])
-            vAxis = matrix.transformTextureAxis(self.textureAxes[1])
+            uAxis = matrix.rotateVector(self.textureAxes[0])
+            vAxis = matrix.rotateVector(self.textureAxes[1])
 
             uMagnitude = math.sqrt(
                 uAxis[0]*uAxis[0] +
@@ -1631,21 +1638,18 @@ class Entity(object):
         for solid in self.solids:
             solid.transform(transform, materialLock, materialScaleLock, origin)
         #transform spatial properties
-        self.properties["origin"] = transform.transformPoint(self.properties["origin"])
+        self.properties["origin"] = transform.transformVector(self.properties["origin"])
         for parameter in FGD.getGameFGD(self.parent.gameId)[self.classname].parameters:
             if parameter.name == "origin":
                 pass
             elif parameter.name in self.properties:
                 if parameter.type is FGD.VECTOR:
-                    self.properties[parameter.name] = transform.transformPoint(self.properties[parameter.name])
+                    self.properties[parameter.name] = transform.transformVector(self.properties[parameter.name])
                 elif parameter.type is FGD.AXIS:
                     for x in range(len(self.properties[parameter.name])):
-                        self.properties[parameter.name][x] = transform.transformPoint(self.properties[parameter.name][x])
+                        self.properties[parameter.name][x] = transform.transformVector(self.properties[parameter.name][x])
                 elif parameter.type is FGD.ANGLE:
-                    ## @todo fix transform.transformAngles
-                    #self.properties[parameter.name] = transform.transformAngles(self.properties[parameter.name])
-                    pass
-
+                    self.properties[parameter.name] = transform.transformAngles(self.properties[parameter.name])
 
 ## A special four by four matrix for transformations such as scaling, rotation,
 #  and translation.
@@ -1822,7 +1826,7 @@ class Matrix:
     #
     #  @param axis texture axis
     #  @return modified texture axis
-    def transformTextureAxis(self, axis):
+    def rotateVector(self, axis):
         x = self._matrix[0][0]*axis[0] + \
             self._matrix[0][1]*axis[1] + \
             self._matrix[0][2]*axis[2]
@@ -1834,21 +1838,21 @@ class Matrix:
             self._matrix[2][2]*axis[2]
         return [x,y,z]
 
-    ## Apply only translation part of matrix transformation to a point
-    #
-    #  @param point 3D coordinate to translate
-    #  @return modified 3D coordinate
-    def translatePoint(self, point):
-        x = point[0] + self._matrix[0][3]
-        y = point[1] + self._matrix[1][3]
-        z = point[2] + self._matrix[2][3]
-        return [x,y,z]
+    ### Apply only translation part of matrix transformation to a point
+    ##
+    ##  @param point 3D coordinate to translate
+    ##  @return modified 3D coordinate
+    #def translateVector(self, point):
+    #    x = point[0] + self._matrix[0][3]
+    #    y = point[1] + self._matrix[1][3]
+    #    z = point[2] + self._matrix[2][3]
+    #    return [x,y,z]
 
     ## Apply full matrix transformation to point
     #
     #  @param point 3D coordinate to transform
     #  @return modified 3D coordinate
-    def transformPoint(self, point):
+    def transformVector(self, point):
         x = self._matrix[0][0]*point[0] + \
             self._matrix[0][1]*point[1] + \
             self._matrix[0][2]*point[2] + \
@@ -1869,41 +1873,49 @@ class Matrix:
     #  @param angles entity "angles" parameter value (in yzx order)
     #  @return modified angles parameter
     def transformAngles(self, angles):
+        previous = Matrix.fromAngles(
+            math.radians(angles[2]),
+            math.radians(angles[0]),
+            math.radians(angles[1]))
+        matrix = previous * self
+        
         #work out angles from our matrix
         #if we ignore the last row and column, it is a rotation matrix (...I think)
         #we can figure out the angles from this.
         
-        #entity angles are in YZX order.
+        #entity angles are stored in YZX order, but transformed in ZYX order.
         #composition:
         #http://en.wikipedia.org/wiki/Euler_angles#Matrix_orientation
         #decomposition:
         #http://www.geometrictools.com/Documentation/EulerAngles.pdf
 
         ## @todo this is broken on rotations around z axis, especially 90 and -90 degrees
-        m = lambda x : self._matrix[int(x/10)][x%10]
+        
+        # decompose transformation into ZYX order euler angles
+        m = lambda x : matrix._matrix[int(x/10)][x%10]
         x = 0
         y = 0
         z = 0
-        if m(10) < 1:
-            if m(10) > -1:
-                z = math.asin(m(10))
-                y = math.atan2(-m(20),m(00))
-                x = math.atan2(-m(12),m(11))
-            else: #m(10) == -1
-                #no unique solution
-                z = -math.pi/2
-                y = -math.atan2(m(21),m(22))
-                x = 0
-        else: #m(10) == 1
-            #no unique solution
-            z = math.pi/2
-            y = math.atan2(m(21),m(22))
-            x = 0
-            
+        
+        if m(2) < 1:
+            if m(2) > -1:
+                y = math.asin(m(2))
+                x = math.atan2(-m(12),m(22))
+                z = math.atan2(-m(1),m(0))
+            else: # m(02) == -1
+                # not unique: z-x = atan(m(10),m(11))
+                y = -math.pi/2
+                x = -math.atan2(m(10),m(11))
+                z = 0
+        else: #m(02) == 1
+            #not unique: z+x = atan(m(10),m(11))
+            y = math.pi/2
+            x = math.atan2(m(10), m(11))
+            z = 0
         
         result = [
-            angles[0] + math.degrees(y),
-            angles[1] + math.degrees(z),
-            angles[2] + math.degrees(x)
+            math.degrees(y),
+            math.degrees(z),
+            math.degrees(x)
         ]
         return result

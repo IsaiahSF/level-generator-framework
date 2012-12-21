@@ -1,4 +1,4 @@
-import math, random
+import math, random, copy
 from formats.map import Map
 from formats.vmf import VMF as VMFraw
 from formats.vmf import Solid, Side, Entity, Matrix
@@ -119,12 +119,13 @@ class VMFMap(Map):
     
     def ammunition(self, origin, ammoType):
         ## @todo fix ammo amounts to be more reasonable
+        assert len(origin) == 3
         origin = list(origin)
         origin[2] += 8
         if ammoType == None:
             return
         if type(ammoType) == list:
-            e = Entity(self._native, ammoType[0], origin)
+            e = Entity(self._native, ammoType[0], origin = origin)
             for prop in ammoType[1:]:
                 e[prop[0]] = prop[1]
         else:
@@ -185,8 +186,28 @@ class VMFMap(Map):
         self._sun[1]['pitch'] = -angles[1]
         self._sun[1]['use_angles'] = True
     
-    def heightDisplacement(self, coords, elevation, heightData):
-        raise NotImplementedError
+    def heightDisplacement(self, coords, elevation, heightData, material=""):
+        assert len(coords) == 4
+        coords = [x+[elevation] for x in coords]
+        sides = []
+        sides.append(coords[:3]) #top
+        bottom = [x[:2]+[elevation-16] for x in coords[:3]]
+        bottom.reverse()
+        sides.append(bottom) #bottom
+        for i in range(4): #sides
+            p1 = coords[i]
+            p2 = coords[(i+1)%4]
+            p3 = copy.copy(p2)
+            p3[2] = p3[2] + 1
+            sides.append([p1, p2, p3])
+        solid = Solid.fromPlanes(self._native, sides, material)
+        
+        power = math.log(len(heightData)-1, 2)
+        solid.sides[0].power = power
+        solid.sides[0].displacement = [[[0,0,x] for x in y] for y in heightData]
+        solid.sides[0]._startPosition = coords[0]
+        
+        return solid
     
     def brushRectangular(self, coord1, coord2, texture = None, detail = False):
         temp1 = [coord1[0], coord2[0]]
