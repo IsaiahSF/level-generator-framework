@@ -92,7 +92,7 @@ class KeyValueList:
     #  @param value value to add to the value list
     def add(self, key, value):
         assert type(key) == str
-        assert type(value) in (str,KeyValueList)
+        assert type(value) in (str,KeyValueList) # Note: doesn't work in Python 2.6
         self.list.append(KeyValueList.Pair(key,value))
 
     ## Returns the key value pairs.
@@ -1091,7 +1091,7 @@ class Side:
         # Get startposition
         if "startposition" in dispInfoKVD:
             side._startPosition = SDKUtil.getNumbers(
-                dispInfoKVD["startposition"]
+                dispInfoKVD["startposition"][0], float
             )
         else:
             side_startPosition = [0, 0, 0]
@@ -1636,8 +1636,11 @@ class Entity(object):
             if parameter.name == "origin":
                 pass
             elif parameter.name in self.properties:
-                if parameter.type in [FGD.VECTOR, FGD.AXIS]:
+                if parameter.type is FGD.VECTOR:
                     self.properties[parameter.name] = transform.transformPoint(self.properties[parameter.name])
+                elif parameter.type is FGD.AXIS:
+                    for x in range(len(self.properties[parameter.name])):
+                        self.properties[parameter.name][x] = transform.transformPoint(self.properties[parameter.name][x])
                 elif parameter.type is FGD.ANGLE:
                     ## @todo fix transform.transformAngles
                     #self.properties[parameter.name] = transform.transformAngles(self.properties[parameter.name])
