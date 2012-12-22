@@ -84,7 +84,7 @@ class VMFMap(Map):
             self._native,
             'info_player_start',
             origin = origin,
-            angles = (0, angle, 0)
+            angles = (0, 0, angle)
             )
         Entity(
             self._native,
@@ -157,7 +157,7 @@ class VMFMap(Map):
                    )
     
     def enemy(self, origin, direction, strength = None):
-        angles = (0, direction, 0)
+        angles = (0, 0, direction)
         if strength == None:
             strength = random.randint(0,2)
         enemy = random.choice(VMFMap.Hl2enemies[strength])
@@ -178,11 +178,11 @@ class VMFMap(Map):
             s = Entity(self._native, 'env_sun')
             s['origin'] = (16,0,0)
             self._sun = [l,s]
-        self._sun[0]['angles'] = [0, (90 - angles[0])%360, 0]
+        self._sun[0]['angles'] = [0, 0, (90 - angles[0])%360]
         self._sun[0]['pitch'] = -angles[1]
         self._sun[0]['_light'] = list(color) + [brightness]
         self._sun[0]['_ambient'] = list(color) + [brightness/10]
-        self._sun[1]['angles'] = [0, (90 - angles[0])%360, 0]
+        self._sun[1]['angles'] = [0, 0, (90 - angles[0])%360]
         self._sun[1]['pitch'] = -angles[1]
         self._sun[1]['use_angles'] = True
     
@@ -433,7 +433,7 @@ class VMFMap(Map):
                 self._native,
                 'prop_static',
                 origin = (x, y, i),
-                angles = [0, bearing, 0],
+                angles = [0, 0, bearing],
                 model = 'models/props_c17/metalladder002.mdl'
                 )
         #make ladder entites

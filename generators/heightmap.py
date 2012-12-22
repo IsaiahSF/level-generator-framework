@@ -761,7 +761,7 @@ class HeightMap(Generator):
                         if canAdd:                           
                             entity = Entity(vmf, prop.type)
                             entity["origin"] = pos
-                            entity["angles"] = [0, random.randrange(0,360), 0]
+                            entity["angles"] = [0, 0, random.randrange(0,360)]
                             entity["model"] = prop.model
 
                             if prop.radius > 0:

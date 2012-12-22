@@ -1451,18 +1451,17 @@ class Entity(object):
                     entity.properties[parameter.name] = SDKUtil.getNumbers(
                         entityKVD[parameter.name][0], int
                     )
-                elif parameter.type in (FGD.VECTOR, FGD.FLOAT_LIST, FGD.ANGLE):
+                elif parameter.type in (FGD.VECTOR, FGD.FLOAT_LIST):
                     entity.properties[parameter.name] = SDKUtil.getNumbers(
                         entityKVD[parameter.name][0], float
                     )
-                ## @todo FIXME unreachable
-                ## @todo convert angle order to match rest of LGF (XYZ order) (it probably requires trig - naive method below won't work)
-                #elif parameter.type == FGD.ANGLE: 
-                #    # Convert from YZX to XYZ
-                #    angle = SDKUtil.getNumbers(
-                #        entityKVD[parameter.name][0], float
-                #    )
-                #    entity.properties[parameter.name] = [angle[2], angle[0], angle[1]]
+                elif parameter.type == FGD.ANGLE: 
+                    # Change angle order from YZX to XYZ. (The VMF rotation order is actually XYZ.)
+                    # The y axis is also reversed
+                    angle = SDKUtil.getNumbers(
+                        entityKVD[parameter.name][0], float
+                    )
+                    entity.properties[parameter.name] = [angle[2], -angle[0], angle[1]]
                 
                 # Right handed
                 # X = Roll = +counter-clockwise/-clockwise
@@ -1550,7 +1549,7 @@ class Entity(object):
                     parameter.name,
                     "%g " % self.properties[parameter.name]
                     )
-            elif parameter.type in (FGD.INTEGER_LIST, FGD.VECTOR, FGD.FLOAT_LIST, FGD.ANGLE):
+            elif parameter.type in (FGD.INTEGER_LIST, FGD.VECTOR, FGD.FLOAT_LIST):
                 valueStr = ""
                 for value in self.properties[parameter.name]:
                     valueStr += "%g " % value
@@ -1559,16 +1558,15 @@ class Entity(object):
                     parameter.name,
                     valueStr
                     )
-            ## @todo FIXME unreachable
-            ## @todo convert angle order to match rest of LGF (XYZ order) (it probably requires trig - naive method below won't work)
-            #elif parameter.type == FGD.ANGLE:
-            #    # Convert from XYZ to YZX
-            #    entityKVL.add(
-            #        parameter.name,
-            #        "%g %g %g" % (self.properties[parameter.name][1],
-            #                      self.properties[parameter.name][2],
-            #                      self.properties[parameter.name][0])
-            #        )
+            elif parameter.type == FGD.ANGLE:
+                # Change angle order from XYZ to YZX. (The VMF rotation order is actually XYZ, but is stored in YZX order.)
+                # The y axis is also reversed
+                entityKVL.add(
+                    parameter.name,
+                    "%g %g %g" % (-self.properties[parameter.name][1],
+                                  self.properties[parameter.name][2],
+                                  self.properties[parameter.name][0])
+                    )
             elif parameter.type == FGD.AXIS:                
                 valueStr = ""
                 if type(self.properties[parameter.name][0]) == list:
@@ -1816,8 +1814,8 @@ class Matrix:
     #  @return result of multiplication
     def __mul__(self, other):
         result = Matrix()
-        for x in range(4):
-            for y in range(4):
+        for y in range(4):
+            for x in range(4):
                 v = [self._matrix[y][i]*other._matrix[i][x] for i in range(4)]
                 result._matrix[y][x] = sum(v)
         return result
@@ -1873,9 +1871,9 @@ class Matrix:
     #  @param angles entity "angles" parameter value (in yzx order)
     #  @return modified angles parameter
     def transformAngles(self, angles):
-        x = Matrix.fromXAngle(math.radians(angles[2]))
-        y = Matrix.fromYAngle(math.radians(-angles[0])) #the y axis is reversed
-        z = Matrix.fromZAngle(math.radians(angles[1]))
+        x = Matrix.fromXAngle(math.radians(angles[0]))
+        y = Matrix.fromYAngle(math.radians(angles[1]))
+        z = Matrix.fromZAngle(math.radians(angles[2]))
         matrix = self * (z * y * x)
         
         #work out angles from our matrix
@@ -1929,8 +1927,8 @@ class Matrix:
             z = 0
         
         result = [
-            -math.degrees(y), #the y axis is reversed
-            math.degrees(z),
-            math.degrees(x)
+            math.degrees(x),
+            math.degrees(y),
+            math.degrees(z)
         ]
         return result
