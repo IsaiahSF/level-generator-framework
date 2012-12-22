@@ -1873,11 +1873,10 @@ class Matrix:
     #  @param angles entity "angles" parameter value (in yzx order)
     #  @return modified angles parameter
     def transformAngles(self, angles):
-        previous = Matrix.fromAngles(
-            math.radians(angles[2]),
-            math.radians(angles[0]),
-            math.radians(angles[1]))
-        matrix = previous * self
+        x = Matrix.fromXAngle(math.radians(angles[2]))
+        y = Matrix.fromYAngle(math.radians(-angles[0])) #the y axis is reversed
+        z = Matrix.fromZAngle(math.radians(angles[1]))
+        matrix = self * (z * y * x)
         
         #work out angles from our matrix
         #if we ignore the last row and column, it is a rotation matrix (...I think)
@@ -1897,6 +1896,22 @@ class Matrix:
         y = 0
         z = 0
         
+        ##zyx order
+        #if m(20) < 1:
+        #    if m(20) > -1:
+        #        y = math.asin(-m(20))
+        #        z = math.atan2(m(10), m(0))
+        #        x = math.atan2(m(21), m(22))
+        #    else:
+        #        y = math.pi/2
+        #        z = -math.atan2(-m(12), m(11))
+        #        x = 0
+        #else:
+        #    y = -math.pi/2
+        #    z = math.atan2(-m(12), m(11))
+        #    x = 0
+        
+        #xyz order
         if m(2) < 1:
             if m(2) > -1:
                 y = math.asin(m(2))
@@ -1914,7 +1929,7 @@ class Matrix:
             z = 0
         
         result = [
-            math.degrees(y),
+            -math.degrees(y), #the y axis is reversed
             math.degrees(z),
             math.degrees(x)
         ]
