@@ -1162,12 +1162,12 @@ class Side:
         j = abs(a[2]*b[0] - a[0]*b[2])
         k = abs(a[0]*b[1] - a[1]*b[0])
 
-        if k > j and k > i: #Up/down
+        if k >= j and k >= i: #Up/down
             return [
                 [1,0,0],
                 [0,-1,0]
                 ]
-        elif i > j and i > k: #East/west
+        elif i > j: #East/west
             return [
                 [0,1,0],
                 [0,0,-1]
