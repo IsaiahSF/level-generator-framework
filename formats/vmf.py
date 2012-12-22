@@ -702,9 +702,6 @@ class Solid:
 
     ## Create a solid by revolving the given 2D shape around the Z axis.
     #
-    #  @bug sometimes produces duplicate planes. Likely caused by rounding.
-    #  @bug planes sometimes have bad texture axes (parallel to face normal)
-    #
     #  @param parent VMF containing this solid
     #  @param pos center of base (x,y,z)
     #  @param profile list of (radius, z) coordinate pairs. Must be convex. Must be ordered from bottom to top. The shape must
@@ -717,17 +714,20 @@ class Solid:
     def fromRevolution(parent, pos, profile, subdivisions, material=''):
         assert subdivisions >= 3
         assert len(profile) >= 3
-        assert int(profile[0][0]) == 0
-        assert int(profile[-1][0]) == 0
+        #ends must be closed
+        assert (profile[0][0] == 0) and (profile[-1][0] == 0)
         assert type(material) == str
+        #verify that profile is convex
+        differential = [profile[i+1][0]-profile[i][0] for i in range(len(profile)-1)]
+        differential = [differential[i+1]-differential[i] for i in range(len(differential)-1)]
+        assert all([x<0 for x in differential]) #convex if 2nd differential is always negative
         planes = []
         ring = []
         step = math.pi*2.0/subdivisions
-        i = 0.0
         for i in range(subdivisions):
             ring.append([math.sin(i*step), math.cos(i*step)])
         #bottom end cap
-        if profile[0][0] == profile[1][0]:
+        if profile[0][1] == profile[1][1]:
             #flat end, one face
             planes.append([
                 [0,0,profile[0][0]],
@@ -738,30 +738,30 @@ class Solid:
             #pointed end cap
             for i in range(len(ring)-1):
                 planes.append([
-                    [int(ring[i+1][0]*profile[1][0] + pos[0]), int(ring[i+1][1]*profile[1][0] + pos[1]), int(pos[2] + profile[1][1])],
-                    [int(ring[i][0]*profile[1][0] + pos[0]), int(ring[i][1]*profile[1][0] + pos[1]), int(pos[2] + profile[1][1])],
-                    [int(pos[0]), int(pos[1]), int(pos[2] + profile[0][1])]
+                    [ring[i+1][0]*profile[1][0] + pos[0],ring[i+1][1]*profile[1][0] + pos[1], pos[2] + profile[1][1]],
+                    [ring[i][0]*profile[1][0] + pos[0], ring[i][1]*profile[1][0] + pos[1], pos[2] + profile[1][1]],
+                    [pos[0], pos[1], pos[2] + profile[0][1]]
                     ])
             planes.append([
-                [int(ring[0][0]*profile[1][0] + pos[0]), int(ring[0][1]*profile[1][0] + pos[1]), int(pos[2] + profile[1][1])],
-                [int(ring[-1][0]*profile[1][0] + pos[0]), int(ring[-1][1]*profile[1][0] + pos[1]), int(pos[2] + profile[1][1])],
-                [int(pos[0]), int(pos[1]), int(pos[2] + profile[0][1])]
+                [ring[0][0]*profile[1][0] + pos[0], ring[0][1]*profile[1][0] + pos[1], pos[2] + profile[1][1]],
+                [ring[-1][0]*profile[1][0] + pos[0], ring[-1][1]*profile[1][0] + pos[1], pos[2] + profile[1][1]],
+                [pos[0], pos[1], pos[2] + profile[0][1]]
                 ])
         #middle sections
         for j in range(1, len(profile) - 2):
             for i in range(len(ring)-1):
                 planes.append([
-                    [int(pos[0] + ring[i][0]*profile[j][0]), int(pos[1] + ring[i][1]*profile[j][0]), int(pos[2]+profile[j][1])],
-                    [int(pos[0] + ring[i+1][0]*profile[j][0]), int(pos[1] + ring[i+1][1]*profile[j][0]), int(pos[2]+profile[j][1])],
-                    [int(pos[0] + ring[i+1][0]*profile[j+1][0]), int(pos[1] + ring[i+1][1]*profile[j+1][0]), int(pos[2]+profile[j+1][1])]
+                    [pos[0] + ring[i][0]*profile[j][0], pos[1] + ring[i][1]*profile[j][0], pos[2]+profile[j][1]],
+                    [pos[0] + ring[i+1][0]*profile[j][0], pos[1] + ring[i+1][1]*profile[j][0], pos[2]+profile[j][1]],
+                    [pos[0] + ring[i+1][0]*profile[j+1][0], pos[1] + ring[i+1][1]*profile[j+1][0], pos[2]+profile[j+1][1]]
                     ])
             planes.append([
-                [int(pos[0] + ring[-1][0]*profile[j][0]), int(pos[1] + ring[-1][1]*profile[j][0]), int(pos[2]+profile[j][1])],
-                [int(pos[0] + ring[0][0]*profile[j][0]), int(pos[1] + ring[0][1]*profile[j][0]), int(pos[2]+profile[j][1])],
-                [int(pos[0] + ring[0][0]*profile[j+1][0]), int(pos[1] + ring[0][1]*profile[j+1][0]), int(pos[2]+profile[j+1][1])]
+                [pos[0] + ring[-1][0]*profile[j][0], pos[1] + ring[-1][1]*profile[j][0], pos[2]+profile[j][1]],
+                [pos[0] + ring[0][0]*profile[j][0], pos[1] + ring[0][1]*profile[j][0], pos[2]+profile[j][1]],
+                [pos[0] + ring[0][0]*profile[j+1][0], pos[1] + ring[0][1]*profile[j+1][0], pos[2]+profile[j+1][1]]
                 ])
         #top end cap
-        if profile[-1][0] == profile[-2][0]:
+        if profile[-1][1] == profile[-2][1]:
             #flat end, one face
             planes.append([
                 [0,0,profile[-1][0]],
@@ -772,14 +772,14 @@ class Solid:
             #pointed end cap
             for i in range(len(ring)-1):
                 planes.append([
-                    [int(ring[i][0]*profile[-2][0] + pos[0]), int(ring[i][1]*profile[-2][0] + pos[1]), int(pos[2] + profile[-2][1])],
-                    [int(ring[i+1][0]*profile[-2][0] + pos[0]), int(ring[i+1][1]*profile[-2][0] + pos[1]), int(pos[2] + profile[-2][1])],
-                    [int(pos[0]), int(pos[1]), int(pos[2] + profile[-1][1])]
+                    [ring[i][0]*profile[-2][0] + pos[0], ring[i][1]*profile[-2][0] + pos[1], pos[2] + profile[-2][1]],
+                    [ring[i+1][0]*profile[-2][0] + pos[0], ring[i+1][1]*profile[-2][0] + pos[1], pos[2] + profile[-2][1]],
+                    [pos[0], pos[1], pos[2] + profile[-1][1]]
                     ])
             planes.append([
-                [int(ring[-1][0]*profile[-2][0] + pos[0]), int(ring[-1][1]*profile[-2][0] + pos[1]), int(pos[2] + profile[-2][1])],
-                [int(ring[0][0]*profile[-2][0] + pos[0]), int(ring[0][1]*profile[-2][0] + pos[1]), int(pos[2] + profile[-2][1])],
-                [int(pos[0]), int(pos[1]), int(pos[2] + profile[-1][1])]
+                [ring[-1][0]*profile[-2][0] + pos[0], ring[-1][1]*profile[-2][0] + pos[1], pos[2] + profile[-2][1]],
+                [ring[0][0]*profile[-2][0] + pos[0], ring[0][1]*profile[-2][0] + pos[1], pos[2] + profile[-2][1]],
+                [pos[0], pos[1], pos[2] + profile[-1][1]]
                 ])
         return Solid.fromPlanes(parent, planes, material)
         
@@ -1142,8 +1142,6 @@ class Side:
                     )
                 )
 
-    ## @bug doesn't work on some face alignments. Sometimes the texture axis are
-    #  parallel with the normal, resulting in bad textures and lighting.
     def _findNearestAxes(self):
         a = (
             self.plane[1][0] - self.plane[0][0],
