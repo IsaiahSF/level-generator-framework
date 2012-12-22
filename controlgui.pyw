@@ -55,11 +55,6 @@ class DirectoryLayout:
         return DirectoryLayout.paths[key]
 
 ## The main GUI
-#
-#  @bug If there is an error loading a module (and a warning dialog pops up and is closed),
-#  the map filename box won't take focus (and can't type in it) until focus is shifted to
-#  another window and back.
-#
 class ControlGUI:
 
     ## Constructor.

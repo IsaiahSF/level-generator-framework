@@ -9,7 +9,6 @@ from gameids import *
 #  @sa Map
 #  @todo implement
 #  @todo entities for l4d* games, cs:s, tf2, portal* games
-#  @todo allow slanted ladders
 #  @todo ladders for CS:S, Gmod, l4d? (func_ladder instead of func_useableladder)
 #  @todo test
 #
@@ -80,17 +79,25 @@ class VMFMap(Map):
         return self._native
 
     def playerStart(self, origin, angle = 0):
-        Entity(
-            self._native,
-            'info_player_start',
-            origin = origin,
-            angles = (0, 0, angle)
-            )
-        Entity(
-            self._native,
-            'item_suit',
-            origin = (origin[0], origin[1], origin[2] + 2)
-            )
+        if self._game == HL2DM:
+            Entity(
+                self._native,
+                'info_player_deathmatch',
+                origin = origin,
+                angles = (0, 0, angle)
+                )
+        else:
+            Entity(
+                self._native,
+                'info_player_start',
+                origin = origin,
+                angles = (0, 0, angle)
+                )
+            Entity(
+                self._native,
+                'item_suit',
+                origin = (origin[0], origin[1], origin[2] + 2)
+                )
 
     def levelChangePoint(self, origin, previousLevel = False):
         raise NotImplementedError
@@ -418,33 +425,51 @@ class VMFMap(Map):
         return brushes
     
     def ladder(self, coord1, coord2, bearing):
-        assert coord1[0] == coord2[0]
-        assert coord1[1] == coord2[1]
         assert coord1[2] != coord2[2]
-        x, y = coord1[:2]
-        temp = [coord1[2], coord2[2]]
-        temp.sort()
-        b, t = temp
-        t += 4
         bearing = (90 - bearing)%360
-        #make ladder props (only come in 128 high segments >_>)
-        for i in range(b, t-t%128, 128):
-            e = Entity(
+        #coord1 is bottom of ladder, coord2 is top of ladder
+        if coord1[2] > coord2[2]:
+            temp = coord2
+            coord2 = coord1
+            coord1 = temp
+        coord1 = list(coord1)
+        coord2 = list(coord2)
+        coord2[2] += 4
+        
+        #place ladder props
+        #vector to place ladders on
+        v = [coord2[0]-coord1[0], coord2[1]-coord1[1], coord2[2]-coord1[2]]
+        #determine number of ladders
+        dist = math.sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+        ladders = int(dist/128)
+        #determine prop angles
+        incline = math.atan(math.sqrt(v[0]**2 + v[1]**2) / v[2])
+        incline = math.degrees(incline)
+        angles = [0, incline, bearing]
+        #normalize vector
+        v = [x/dist for x in v]
+        #create prop entities
+        for i in range(ladders):
+            Entity(
                 self._native,
                 'prop_static',
-                origin = (x, y, i),
-                angles = [0, 0, bearing],
+                origin = (coord1[0]+i*v[0]*128, coord1[1]+i*v[1]*128, coord1[2]+i*v[2]*128),
+                angles = angles,
                 model = 'models/props_c17/metalladder002.mdl'
-                )
-        #make ladder entites
+            )
+        
+        #place functional entities
         bearing = math.radians(bearing)
-        offset = (math.cos(bearing)*28, math.sin(bearing)*28)
-        l = Entity(
+        distance1 = 26 + 10 * (v[0]**2 + v[1]**2) / v[2] #as angle increases, it tends to run into static props. second term prevents this.
+        offset1 = (math.cos(bearing)*distance1, math.sin(bearing)*distance1)
+        distance2 = 26
+        offset2 = (math.cos(bearing)*distance2, math.sin(bearing)*distance2)
+        Entity(
             self._native,
             'func_useableladder',
-            origin = (x+offset[0],y+offset[1],b),
-            point0 = (x+offset[0],y+offset[1],b),
-            point1 = (x+offset[0],y+offset[1],t)
+            origin = (coord1[0]+offset1[0], coord1[1]+offset1[1], coord1[2]),
+            point0 = (coord1[0]+offset1[0], coord1[1]+offset1[1], coord1[2]),
+            point1 = (coord2[0]+offset2[0], coord2[1]+offset2[1], coord2[2])
             )
     
     def stairs(self, coord1, coord2, direction, texture = None):

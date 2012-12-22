@@ -623,8 +623,6 @@ class Prop:
 
 ## Generator that runs tests on the native VMF format module
 #
-#  @bug Half Life 2 Death Match crashes. missing vital spawn point entities.
-#
 class HeightMap(Generator):
     ## Name
     name = "Heightmap Generator"
@@ -640,7 +638,7 @@ class HeightMap(Generator):
         HL2,
         HL2EP1,
         HL2EP2,
-        HL2DM,
+        # HL2DM, #Half Life 2 Death Match crashes. missing vital spawn point entities.
         P1,
         P2,
         L4D1,

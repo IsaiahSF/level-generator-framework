@@ -7,8 +7,6 @@ from formats.vmf import *
 
 ## Generator that runs tests on the native VMF format module
 #
-#  @bug Half Life 2 Death Match crashes. missing vital spawn point entities.
-#
 class TestVMF(Generator):
     ## Name
     name = "Native VMF Test"
@@ -70,6 +68,10 @@ class TestVMF(Generator):
         ## low level VMF instance
         self.native = self.map.getNative()
         self.setProgress(0.0)
+        # create hl2dm spawn
+        if self.gameID == HL2DM:
+            Entity(self.native,
+                   'info_player_deathmatch')
         self.tests.run()
         self.map.save()
         self.setProgress(1.0)

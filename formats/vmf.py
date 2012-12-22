@@ -336,8 +336,6 @@ class VMF:
 
     ## Insert a prefab
     #
-    #  @todo incomplete
-    #
     #  @param prefab the prefab VMF object
     #  @param pos translation
     #  @param rot rotation
@@ -460,17 +458,15 @@ class Solid:
     #  @sa Side.__init__()
     @staticmethod
     def fromPlanes(parent, planes, materials=""):
+        assert type(materials) in [str, list]
         solid = Solid(parent)
         if type(materials) == str:
             for plane in planes:
                 Side(solid, plane, materials)
-        elif type(materials) == list:
+        else: #list
             assert len(planes) == len(materials)
             for x in range(0, len(planes)):
                 Side(solid, planes[x], materials[x])
-        else:
-            raise Exception() ## @todo FIXME
-        
         return solid
 
     ## Create Solid from 3D planes defined by points and normals.
@@ -485,17 +481,16 @@ class Solid:
     #  @sa Side.fromNormal()
     @staticmethod
     def fromNormals(parent, points, normals, materials=""):
+        assert type(materials) in [str, list]
         assert len(points) == len(normals)
         solid = Solid(parent)
         if type(materials) == str:
             for n in range(len(points)):
                 Side.fromNormal(solid, points[n], normals[n], materials)
-        elif type(materials) == list:
+        else: #list
             assert len(points) == len(materials)
             for n in range(len(points)):
                 Side.fromNormal(solid, points[n], normals[n], materials[n])
-        else:
-            raise Exception() ## @todo FIXME (don't know what zay has in mind)
         return solid
 
     ## Create rectangular Solid
@@ -730,9 +725,9 @@ class Solid:
         if profile[0][1] == profile[1][1]:
             #flat end, one face
             planes.append([
-                [0,0,profile[0][0]],
-                [1,0,profile[0][0]],
-                [1,1,profile[0][0]]
+                [0,0,profile[0][0] + pos[2]],
+                [1,0,profile[0][0] + pos[2]],
+                [1,1,profile[0][0] + pos[2]]
                 ])
         else:
             #pointed end cap
@@ -764,9 +759,9 @@ class Solid:
         if profile[-1][1] == profile[-2][1]:
             #flat end, one face
             planes.append([
-                [0,0,profile[-1][0]],
-                [1,0,profile[-1][0]],
-                [1,-1,profile[-1][0]]
+                [0,0,profile[-1][0] + pos[2]],
+                [1,0,profile[-1][0] + pos[2]],
+                [1,-1,profile[-1][0] + pos[2]]
                 ])
         else:
             #pointed end cap
@@ -972,9 +967,7 @@ class Side:
         elif power in Side.POWERS:
             if self.power != power:
                 self._vertexNum = int(2**power + 1)
-                ## @todo fixme - startPosition should be the real corner of the brush.
-                #  @bug (confirmed) displacements in far NE corner are corrupted. startPosition too far away. Looks like an overflow error.
-                #  @bug (confirmed) in non-rectangular displacements, a corner other than the one intended can be closer to startPosition - ruins displacement
+                # this doesn't work for all displacements. This is solved by manually setting _startPosition
                 self._startPosition = [-8192, -8192, -8192]
                 self._displacement = []
                 for x in range(0, self._vertexNum):
@@ -1398,8 +1391,6 @@ class Entity(object):
 
     ## Create a copy
     #
-    #  @todo does not change entity outputs - will interfere with anything that uses the same names, like other copies of the prefab
-    #
     #  @param parent parent of the copy
     #  @return Entity
     def copy(self, parent):
@@ -1617,8 +1608,6 @@ class Entity(object):
         return entityKVL
     
     ## transform the entity using a transformation matrix
-    #
-    #  @todo test (especially that all entity parameters are transformed correctly)
     #
     #  @param transform a 4x4 transformation matrix
     #  @param materialLock If true, textures are transformed with the solids (if any).
@@ -1883,8 +1872,6 @@ class Matrix:
         #http://en.wikipedia.org/wiki/Euler_angles#Matrix_orientation
         #decomposition:
         #http://www.geometrictools.com/Documentation/EulerAngles.pdf
-
-        ## @todo this is broken on rotations around z axis, especially 90 and -90 degrees
         
         # decompose transformation into ZYX order euler angles
         m = lambda x : matrix._matrix[int(x/10)][x%10]

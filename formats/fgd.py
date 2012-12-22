@@ -140,15 +140,15 @@ class FGD:
             user, base = SDKUtil.findUserAndBasePath()
             path = base + "/" + user
             if gameId == gameids.HL2:
-                path += "/sourcesdk/bin/source2007/bin/halflife2.fgd"
+                path += "/sourcesdk/bin/source2009/bin/halflife2.fgd"
             elif gameId == gameids.HL2DM:
-                path += "/sourcesdk/bin/source2007/bin/hl2mp.fgd"
+                path += "/sourcesdk/bin/orangebox/bin/hl2mp.fgd"
             elif gameId == gameids.HL2EP1:
                 path += "/sourcesdk/bin/ep1/bin/halflife2.fgd"
             elif gameId == gameids.HL2EP2:
                 path += "/sourcesdk/bin/source2009/bin/halflife2.fgd"
             elif gameId == gameids.P1:
-                raise NotImplementedError() ## @todo implement
+                path += "/sourcesdk/bin/source2009/bin/portal.fgd"
             elif gameId == gameids.P2:
                 raise NotImplementedError() ## @todo implement
             elif gameId == gameids.L4D1:
@@ -492,17 +492,20 @@ class FGD:
                 choices = None
                 if len(data) >= 2:
                     shortDescription = parent.stringDict[ data[1] ]
-                if len(data) >= 3 and data[2] != '':
+                if len(data) >= 3 and data[2] != "":
                     try:
                         default = str(int(data[2]))
                     except:
                         default = parent.stringDict[ data[2] ]
-                if len(data) >= 4:
+                if len(data) >= 4 and data[3] != "":
                     longDescription = parent.stringDict[ data[3] ]
                 if valueType == 'choices' or valueType == 'flags':
                     if valueType == 'flags':
                         flagDefault = 0
                     
+                    #look for options, which come after the '='
+                    while not parameters[cursor].endswith('='):
+                        cursor += 1
                     cursor += 1
                     temp = [x for x in parameters[cursor] if x != '']
                     choices = dict()

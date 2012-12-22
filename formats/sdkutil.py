@@ -69,11 +69,11 @@ class SDKUtil:
         #counter strike source, team fortress 2
         hammerPath = basePath + '/' + userName + '/sourcesdk/bin/orangebox'
         if SDKUtil.checkHammerPath(hammerPath):
-            gamelist.extend([CSS, TF2])
+            gamelist.extend([CSS, TF2, HL2DM])
         #hl2, hl2dm, hl2ep1, hl2ep2, portal 1
         hammerPath = basePath + '/' + userName + '/sourcesdk/bin/source2009'
         if SDKUtil.checkHammerPath(hammerPath):
-            gamelist.extend([HL2, HL2EP1, HL2EP2, HL2DM, GMOD])
+            gamelist.extend([HL2, HL2EP1, HL2EP2, GMOD])
         #check that game directory can be found
         gamelist = [x for x in gamelist if os.path.isdir(SDKUtil.findGamePath(x))]
         return gamelist
@@ -117,11 +117,11 @@ class SDKUtil:
         elif gameID == L4D2:
             #works for l4d2
             hammerPath = basePath + '/common/left 4 dead 2'
-        elif gameID == CSS or gameID == TF2:
+        elif gameID in [CSS, TF2]:
             #works for counter strike and team fortress 2
             hammerPath = basePath + '/' + userName + '/sourcesdk/bin/orangebox'
         else:
-            #works for hl2, hl2dm, hl2ep1, hl2ep2, portal 1
+            #works for hl2, hl2ep1, hl2ep2, portal 1
             #but not portal 2, l4d2, hl2dm(?)
             hammerPath = basePath + '/' + userName + '/sourcesdk/bin/source2009'
         #validate
