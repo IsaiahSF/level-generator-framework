@@ -54,24 +54,18 @@ class RotateGenerator(Generator):
         self.setProgress(0.0)
         
         self.listenerWrite('Loading prefab...')
-        testPrefab = VMF(self.gameID, './maps/test_prefab2.vmf')
+        testPrefab = VMF(self.gameID, './generators/rotationtestPrefab.vmf')
         self.listenerWrite('  loaded.\n')
-        
-        self.listenerWrite('Adding prefab.\n')
-        self.native.addPrefab(testPrefab)
-        #z rotations
-        self.listenerWrite('Testing z rotations.\n')
-        for a in range(1,17):
-            self.native.addPrefab(testPrefab, pos=[-a*48, 0, 0], rot=[0, 0, a*math.pi/8])
-        #x rotations
-        self.listenerWrite('Testing x rotations.\n')
-        for a in range(1,17):
-            self.native.addPrefab(testPrefab, pos=[a*48, 0, 0], rot=[a*math.pi/8, 0, 0])
-        #y rotations
-        self.listenerWrite('Testing y rotations.\n')
-        for a in range(1,17):
-            self.native.addPrefab(testPrefab, pos=[0, a*48, 0], rot=[0, a*math.pi/8, 0])
-        
+                
+        self.listenerWrite('Testing rotations...')
+        spacing = 96
+        size = 8
+        for x in range(0, size+1):
+            self.setProgress(x/float(size))
+            for y in range(0, size+1):
+                for z in range(0, size+1):
+                    self.native.addPrefab(testPrefab, pos=[spacing*x, spacing*y, spacing*z], rot=[x*math.pi*2.0/size, y*math.pi*2.0/size, z*math.pi*2.0/size])
+        self.listenerWrite('  tested.\n')
         
         self.listenerWrite('Saving map...')
         self.map.save()
