@@ -368,19 +368,26 @@ class SDKExecutor(Executor):
                 stderr = subprocess.STDOUT,
                 stdout = subprocess.PIPE
                 )
-            if len(self.listeners)>0:
-                while process.poll() == None:
-                    text = process.stdout.read(4)
-                    if sys.version_info.major == 3:
-                        text = str(text, 'ascii')
-                    while text != '':
-                        self.listenerWrite(text)
+            try:
+                if len(self.listeners)>0:
+                    while process.poll() == None:
                         text = process.stdout.read(4)
                         if sys.version_info.major == 3:
                             text = str(text, 'ascii')
-                    time.sleep(0.05) #~20fps
-            else:
-                process.wait()
+                        while text != '':
+                            self.listenerWrite(text)
+                            text = process.stdout.read(4)
+                            if sys.version_info.major == 3:
+                                text = str(text, 'ascii')
+                        time.sleep(0.05) #~20fps
+                else:
+                    process.wait()
+            except SystemExit:
+                #this is raised by the GUI to abort generation/compilation
+                #however, we need to stop the external process, so we catch it
+                process.kill()
+                print('killed external process')
+                raise SystemExit() #...and then pass it along
             if process.returncode != 0:
                 raise Exception(name + ' failed.')
             

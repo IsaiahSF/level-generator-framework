@@ -1,4 +1,4 @@
-import os, inspect, threading, traceback, sys, time, imp
+import os, inspect, threading, ctypes, traceback, sys, time, imp
 
 #Note that the only officially supported version of Python is 3
 print("python version " + str(sys.version_info))
@@ -431,18 +431,17 @@ class ControlGUI:
 
     ## Update loop that runs while generator and executor work
     def updateProgress(self):
-        self.progressGUI.update()
         if self.thread.isAlive():
+            self.progressGUI.update()
             self.window.after(25, self.updateProgress)
         else:
-            #self.progressGUI.closeGUI() #close window when done
             if self.runException != None:
                 #handle thread exceptions
                 self.progressGUI.setStatus('Error')
                 self.progressGUI.write('\n\n')
                 self.progressGUI.write(self.runTraceback)
                 self.progressGUI.update()
-                
+            self.thread = None
 
     ## Runs Generator and optionally launches editor, compiles, and launches
     #  the game. This method is called by a worker thread. It assumes member
@@ -489,7 +488,6 @@ class ControlGUI:
                     self.runException = e
                     self.runTraceback = traceback.format_exc()
                     return
-
 
     ## Load or reload map, executor, and generator modules. Should be resiliant
     #  against syntax errors in modules, new modules, missing modules, and changed
@@ -664,6 +662,7 @@ class ProgressGUI(progressobserver.ProgressObserver):
     def __init__(self, rootwindow, thread):
         ## Thread that executes process
         self.thread = thread
+        self.aborted = False
         ## Float progress value between 0.0 and 1.0 inclusive
         self.progress = 0.0
         ## Brief human-readable status string
@@ -688,7 +687,6 @@ class ProgressGUI(progressobserver.ProgressObserver):
         self.window.transient(rootwindow)
         self.window.resizable(0,0)
         self.window.protocol("WM_DELETE_WINDOW", self.closeGUI)
-        self.window.bind("<Destroy>", self.destroyWindow)
         #place window over parent
         self.window.geometry(
             "+%i+%i" %
@@ -724,15 +722,44 @@ class ProgressGUI(progressobserver.ProgressObserver):
         self.consoleWidget.grid(column = 0, row = 2)
         scrollbar.grid(column = 1, row = 2, sticky = N + S)
 
-    ## Catches window destruction event
-    def destroyWindow(self, event):
-        self.closeGUI()
+    ## force generator thread to stop
+    def abort(self):
+        self.aborted = True
+        if not self.thread.isAlive():
+            return # not running
+        
+        #get thread ID
+        threadID = None
+        for tid, tobj in threading._active.items():
+            if tobj is self.thread:
+                threadID = tid
+        #raise an exception within the thread to kill it
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+            threadID,
+            ctypes.py_object(SystemExit)
+        )
+        if res == 0:
+            raise ValueError("got invalid thread id")
+        elif res > 1:
+            # "if it returns a number greater than one, you're in trouble,
+            # and you should call it again with exc=NULL to revert the effect"
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+            raise SystemError("abort via PyThreadState_SetAsyncExc failed")
 
     ## Close the window
     def closeGUI(self):
         #ignore if thread is still running
         if self.thread.isAlive():
-            return
+            ## @todo ask 'are you sure y/n' and abort if they are sure
+            answer = messagebox.askyesno(
+                title='Warning',
+                message='Are you sure you want to abort?'
+                )
+            if answer==False:
+                return
+            else:
+                self.abort()
+        
         try:
             self.window.destroy()
         except:
@@ -740,6 +767,8 @@ class ProgressGUI(progressobserver.ProgressObserver):
 
     ## Update the GUI. Must be called regularly to keep GUI up to date.
     def update(self):
+        if self.aborted:
+            return
         #update status
         self.statusLock.acquire(True) #True means block until acquired
         self.displayedStatus.set(self.status)
