@@ -597,6 +597,68 @@ class Solid:
         solid.sides[0].displacement = offsets
         solid.sides[0]._startPosition = [pos[0], pos[1], pos[2]]
         return solid
+    
+    ## Create a displacement of any (4-sided, convex) shape
+    #
+    #  @param parent VMF containing this displacement
+    #  @param power power/detail level of displacement, 2-4 inclusive.
+    #  @param corners corners of displacement in clockwise order.
+    #  @param function A function accepting absolute x/y coordinates and outputing the absolute z height
+    #  @param material texture of displacement
+    #
+    #  @return VMF solid object
+    @staticmethod
+    def fromHeightFunction(parent, power, corners, function, material=""):
+        assert len(corners) == 4 #must have 4 corners
+        assert all([len(x)==2 for x in corners]) #must be 2D coordinates
+        
+        #generate heightmap
+        #determine base elevation
+        minimum = 1024*16 #some high number
+        dimension = 2**power
+        heightMap = []
+        for i in range(dimension, -1, -1):
+            frac1 = float(i)/dimension
+            frac2 = 1 - frac1
+            startColumn = [corners[0][0]*frac1 + corners[3][0]*frac2,
+                           corners[0][1]*frac1 + corners[3][1]*frac2]
+            endColumn = [corners[1][0]*frac1 + corners[2][0]*frac2,
+                           corners[1][1]*frac1 + corners[2][1]*frac2]
+            column = []
+            for j in range(dimension, -1, -1):
+                frac3 = float(j)/dimension
+                frac4 = 1 - frac3
+                #use height function to get height at specified coordinates
+                height = function(
+                    startColumn[0]*frac3 + endColumn[0]*frac4,
+                    startColumn[1]*frac3 + endColumn[1]*frac4
+                    )
+                if height < minimum:
+                    minimum = height
+                column.append(height)
+            heightMap.append(column)
+        
+        #generate solid
+        corners = [x+[minimum] for x in corners]
+        sides = []
+        sides.append(corners[:3]) #top
+        bottom = [x[:2]+[minimum-16] for x in corners[:3]]
+        bottom.reverse()
+        sides.append(bottom) #bottom
+        for i in range(4): #sides
+            p1 = corners[i]
+            p2 = corners[(i+1)%4]
+            p3 = copy.copy(p2)
+            p3[2] = p3[2] + 1
+            sides.append([p1, p2, p3])
+        solid = Solid.fromPlanes(parent, sides, material)
+        
+        #create displacement
+        solid.sides[0].power = power
+        solid.sides[0].displacement = [[[0,0,x - minimum] for x in y] for y in heightMap]
+        solid.sides[0]._startPosition = corners[0]
+        
+        return solid
 
     ## Create cylindrical solid
     #

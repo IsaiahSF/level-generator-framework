@@ -55,7 +55,8 @@ class TestVMF(Generator):
                 TestCase(self, 'Solid Scaling', self._testScaling)
                 ]),
             TestCategory('Displacements', [
-                TestCase(self, 'Solid.fromHeightMap()', self._testFromHeightMap)
+                TestCase(self, 'Solid.fromHeightMap()', self._testFromHeightMap),
+                TestCase(self, 'Solid.fromHeightFunction()', self._testFromHeightFunction)
                 ])
             ])
 
@@ -68,7 +69,7 @@ class TestVMF(Generator):
         ## low level VMF instance
         self.native = self.map.getNative()
         self.setProgress(0.0)
-        # create hl2dm spawn
+        # create hl2dm spawn (or else it will crash)
         if self.gameID == HL2DM:
             Entity(self.native,
                    'info_player_deathmatch')
@@ -287,3 +288,67 @@ class TestVMF(Generator):
                         column.append(lower+height)
                     heightMap.append(column)
                 Solid.fromHeightMap(self.native, (dx,dy,-64), (size,size,32), heightMap, self.map.textureStone)
+
+    @staticmethod
+    def _heightFunction(x, y):
+        center = (0, -512)
+        radius = 128
+        height = 92
+        base = -36
+        distance = math.sqrt((center[0]-x)**2 + (center[1]-y)**2)
+        if distance > radius:
+            return base
+        else:
+            return (math.cos(math.pi * distance/radius)+1) * height/2 + base
+
+    def _testFromHeightFunction(self):
+        power = 4
+        center = (0, -512)
+        
+        #put a block in the hole in the middle
+        Solid.from3DRect(self.native, (center[0]-32,center[1]-32,-32), (64,64,80), self.map.textureWall)
+        
+        Solid.fromHeightFunction(
+            self.native,
+            power,
+            [
+                [center[0]-128,center[1]-128],
+                [center[0]-32,center[1]-32],
+                [center[0]+32,center[1]-32],
+                [center[0]+128,center[1]-128]
+                ],
+            TestVMF._heightFunction,
+            self.map.textureStone)
+        Solid.fromHeightFunction(
+            self.native,
+            power,
+            [
+                [center[0]-128,center[1]-128],
+                [center[0]-128,center[1]+128],
+                [center[0]-32,center[1]+32],
+                [center[0]-32,center[1]-32]
+                ],
+            TestVMF._heightFunction,
+            self.map.textureStone)
+        Solid.fromHeightFunction(
+            self.native,
+            power,
+            [
+                [center[0]-32,center[1]+32],
+                [center[0]-128,center[1]+128],
+                [center[0]+128,center[1]+128],
+                [center[0]+32,center[1]+32]
+                ],
+            TestVMF._heightFunction,
+            self.map.textureStone)
+        Solid.fromHeightFunction(
+            self.native,
+            power,
+            [
+                [center[0]+32,center[1]-32],
+                [center[0]+32,center[1]+32],
+                [center[0]+128,center[1]+128],
+                [center[0]+128,center[1]-128]
+                ],
+            TestVMF._heightFunction,
+            self.map.textureStone)

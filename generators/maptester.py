@@ -58,7 +58,7 @@ class TestMap(Generator):
                 TestCase(self, 'Map.brushSphere()', self._testBrushSphere),
                 TestCase(self, 'Map.texture()', self._testTexture),
                 TestCase(self, 'Map.textureSky()', self._testTextureSky),
-                TestCase(self, 'Map.heightDisplacement()', self._testHeightDisplacement, False),
+                TestCase(self, 'Map.heightDisplacement()', self._testHeightDisplacement),
                 TestCase(self, 'Map.prefab()', self._testPrefab, False)
                 ]),
             TestCategory('Cutting, Splitting', [
@@ -178,7 +178,18 @@ class TestMap(Generator):
             for brush in self.skybox:
                 self.map.textureSky(brush)
     def _testHeightDisplacement(self):
-        raise NotImplementedError
+        #base around center column
+        #generate height data
+        heightmap = []
+        for x in range(9):
+            column = []
+            for y in range(9):
+                column.append(20 - math.sqrt((x-4)**2 + (y-4)**2)*5)
+            heightmap.append(column)
+        self.map.heightDisplacement([[-100,-100],[-100,100],[100,100],[100,-100]], 0, heightmap, self.map.textureStone)
+        ## trapazoidal displacement
+        self.map.heightDisplacement([[200,200],[200,300],[250,250],[240,210]], 100, heightmap, self.map.textureStone)
+        
     def _testPrefab(self):
         raise NotImplementedError
 
@@ -224,10 +235,16 @@ class TestMap(Generator):
         self.map.arch((128,-32,272), (112,32,400), 7, True, self.map.textureTile)
         self.map.arch((-128,-32,272), (-112,32,400), 7, True, self.map.textureTile)
     def _testLadder(self):
+        #vertical ladders
         self.map.ladder((128,-96,0), (128,-96,416), 90)
         self.map.ladder((-128,96,0), (-128,96,416), 270)
         self.map.ladder((96,128,0), (96,128,416), 0)
         self.map.ladder((-96,-128,0), (-96,-128,416), 180)
+        # angled ladders
+        self.map.ladder((678,96,0), (128,96,416), 90)
+        self.map.ladder((-678,-96,0), (-128,-96,416), 270)
+        self.map.ladder((-96,678,0), (-96,128,416), 0)
+        self.map.ladder((96,-678,0), (96,-128,416), 180)
     def _testStairs(self):
         length = 384
         self.map.stairs((-128-length,-64,0), (-128,64,272), (1,0), self.map.textureStone)
